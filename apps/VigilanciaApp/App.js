@@ -18,7 +18,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 const CONFIG = {
-  BACKEND_URL: 'https://qr-manager-backend.onrender.com',
+  BACKEND_URL: 'https://qr-manager-3z8x.onrender.com',
   ALPHA_CODE_LENGTH: 6,
   SHEETS: {
     VIGILANCIA: '1hdSKlGGj4DMT4KOm6P3ZouY9csFJX3_eRjM5k_hH_j4',
@@ -40,83 +40,52 @@ const COLORS = {
   BORDER: '#E0E0E0'
 };
 
+const logger = {
+  info: (tag, message, data = null) => {
+    console.log(`[INFO] [${tag}] ${message}`, data || '');
+  },
+  error: (tag, message, error = null) => {
+    console.error(`[ERROR] [${tag}] ${message}`, error || '');
+  }
+};
+
 const formatDate = () => new Date().toLocaleDateString('es-MX');
 const formatTime = () => new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-const parseQRData = (qrData) => {
-  try {
-    const data = JSON.parse(qrData);
-    return { valid: true, data: data };
-  } catch (error) {
-    return { valid: false, error: 'Código QR inválido' };
-  }
-};
-
-const validateAlphaCode = (code) => {
-  if (!code || code.trim().length === 0) {
-    return { valid: false, message: 'El código es requerido' };
-  }
-  if (code.trim().length !== CONFIG.ALPHA_CODE_LENGTH) {
-    return { valid: false, message: `El código debe tener ${CONFIG.ALPHA_CODE_LENGTH} caracteres` };
-  }
-  return { valid: true };
-};
-
-const validateNombre = (nombre) => {
-  if (!nombre || nombre.trim().length === 0) {
-    return { valid: false, message: 'El nombre es requerido' };
-  }
-  if (nombre.trim().length < 2) {
-    return { valid: false, message: 'El nombre debe tener al menos 2 caracteres' };
-  }
-  return { valid: true };
-};
-
-const validateNumeroCasa = (numeroCasa) => {
-  if (!numeroCasa || numeroCasa.trim().length === 0) {
-    return { valid: false, message: 'El número de casa es requerido' };
-  }
-  return { valid: true };
-};
-
 const VigilanciaApp = () => {
-  const [currentTab, setCurrentTab] = useState('manual'); // 'manual' | 'worker'
+  const [currentTab, setCurrentTab] = useState('manual');
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Estados de validación manual
   const [manualCode, setManualCode] = useState('');
   const [validationResult, setValidationResult] = useState(null);
-
-  // Estados del registro de trabajadores
-  const [workerData, setWorkerData] = useState({
-    nombre: '',
-    casa: '',
-  });
+  const [workerData, setWorkerData] = useState({ nombre: '', casa: '' });
   const [workerPhoto, setWorkerPhoto] = useState(null);
   const [workerErrors, setWorkerErrors] = useState({});
-
-  // Contadores del día
-  const [dailyStats, setDailyStats] = useState({
-    visitantes: 0,
-    trabajadores: 0,
-  });
+  const [dailyStats, setDailyStats] = useState({ visitantes: 0, trabajadores: 0 });
 
   useEffect(() => {
-    initializeApp();
+    logger.info('App', 'Inicializando VigilanciaApp');
+    const cleanup = initializeApp();
     requestPermissions();
+    
+    return () => {
+      if (cleanup && typeof cleanup.then === 'function') {
+        cleanup.then(unsubscribe => {
+          if (unsubscribe && typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        });
+      }
+    };
   }, []);
 
   const initializeApp = async () => {
     const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected);
-      if (state.isConnected) {
-        syncOfflineData();
-      }
+      setIsConnected(state.isConnected ?? false);
+      logger.info('Network', `Estado de red: ${state.isConnected ? 'Conectado' : 'Desconectado'}`);
     });
-
-    loadDailyStats();
-    return () => unsubscribe();
+    await loadDailyStats();
+    return unsubscribe;
   };
 
   const requestPermissions = async () => {
@@ -127,12 +96,9 @@ const VigilanciaApp = () => {
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         ]);
-
-        if (granted['android.permission.CAMERA'] !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('Permisos', 'Se necesita acceso a la cámara para tomar fotos.');
-        }
+        logger.info('Permissions', 'Permisos solicitados', granted);
       } catch (err) {
-        console.warn(err);
+        logger.error('Permissions', 'Error solicitando permisos', err);
       }
     }
   };
@@ -141,32 +107,18 @@ const VigilanciaApp = () => {
     try {
       const savedStats = await AsyncStorage.getItem('@daily_stats');
       if (savedStats) {
-        setDailyStats(JSON.parse(savedStats));
+        const parsedStats = JSON.parse(savedStats);
+        setDailyStats(parsedStats);
+        logger.info('Stats', 'Estadísticas cargadas', parsedStats);
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const syncOfflineData = async () => {
-    try {
-      const pendingWorkers = await AsyncStorage.getItem('@workers_offline') || '[]';
-      const workers = JSON.parse(pendingWorkers);
-      
-      for (const worker of workers) {
-        await saveWorkerToSheets(worker);
-      }
-      
-      if (workers.length > 0) {
-        await AsyncStorage.removeItem('@workers_offline');
-      }
-    } catch (error) {
-      console.error('Error syncing offline data:', error);
+      logger.error('Stats', 'Error cargando estadísticas', error);
     }
   };
 
   const validateQRCodeInSheets = async (codigo) => {
     try {
+      logger.info('Validation', 'Validando código en Google Sheets', codigo);
       const response = await fetch(`${CONFIG.BACKEND_URL}/api/sheets/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,121 +130,101 @@ const VigilanciaApp = () => {
       
       if (response.ok) {
         const result = await response.json();
+        logger.info('Validation', 'Resultado de validación', result);
         return result;
       }
+      
+      const errorText = await response.text();
+      logger.error('Validation', 'Error en respuesta del servidor', errorText);
       return { success: false, error: 'Error en la validación' };
     } catch (error) {
-      console.error('Error validating code:', error);
+      logger.error('Validation', 'Error validando código', error);
       return { success: false, error: error.message };
     }
   };
 
-  const saveWorkerToSheets = async (workerRecord) => {
-    try {
-      const response = await fetch(`${CONFIG.BACKEND_URL}/api/sheets/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheetId: CONFIG.SHEETS.VIGILANCIA,
-          data: workerRecord
-        })
-      });
-      
-      return response.ok;
-    } catch (error) {
-      console.error('Error saving worker:', error);
-      return false;
-    }
-  };
-
   const validateManualCode = async () => {
-    try {
-      setLoading(true);
-      
-      const validation = validateAlphaCode(manualCode);
-      if (!validation.valid) {
-        Alert.alert('Error', validation.message);
-        return;
-      }
+    if (!manualCode.trim()) {
+      Alert.alert('Error', 'Ingresa un código');
+      return;
+    }
 
+    setLoading(true);
+    setValidationResult(null);
+    logger.info('ManualValidation', 'Iniciando validación manual');
+    
+    try {
       if (isConnected) {
         const result = await validateQRCodeInSheets(manualCode.toUpperCase());
         
         if (result.success && result.found) {
-          setValidationResult({
-            valid: true,
-            data: result.data
-          });
-          updateDailyStats('visitantes');
+          setValidationResult({ valid: true, data: result.data });
+          await updateDailyStats('visitantes');
         } else {
-          setValidationResult({
-            valid: false,
-            message: 'Código no encontrado'
-          });
+          setValidationResult({ valid: false, message: result.error || 'Código no encontrado' });
         }
       } else {
-        Alert.alert(
-          'Sin Conexión',
-          'No se puede validar el código sin conexión a internet.'
-        );
+        Alert.alert('Sin Conexión', 'No se puede validar el código sin conexión a internet.');
       }
-
     } catch (error) {
-      console.error('Error validating manual code:', error);
+      logger.error('ManualValidation', 'Error en validación', error);
       Alert.alert('Error', 'Error al validar el código');
+      setValidationResult({ valid: false, message: 'Error al validar el código' });
     } finally {
       setLoading(false);
     }
   };
 
-  const clearManualValidation = () => {
-    setManualCode('');
-    setValidationResult(null);
-  };
-
   const takeWorkerPhoto = () => {
-    const options = {
-      mediaType: 'photo',
-      quality: 0.8,
-      maxWidth: 1024,
+    logger.info('Photo', 'Solicitando tomar foto');
+    const options = { 
+      mediaType: 'photo', 
+      quality: 0.8, 
+      maxWidth: 1024, 
       maxHeight: 1024,
+      includeBase64: false
     };
 
-    Alert.alert(
-      'Tomar Foto',
-      'Selecciona una opción',
-      [
-        { text: 'Cámara', onPress: () => launchCamera(options, handlePhotoResponse) },
-        { text: 'Galería', onPress: () => launchImageLibrary(options, handlePhotoResponse) },
-        { text: 'Cancelar', style: 'cancel' }
-      ]
-    );
+    Alert.alert('Tomar Foto', 'Selecciona una opción', [
+      { text: 'Cámara', onPress: () => launchCamera(options, handlePhotoResponse) },
+      { text: 'Galería', onPress: () => launchImageLibrary(options, handlePhotoResponse) },
+      { text: 'Cancelar', style: 'cancel' }
+    ]);
   };
 
   const handlePhotoResponse = (response) => {
-    if (response.didCancel || response.error) {
+    if (response.didCancel) {
+      logger.info('Photo', 'Foto cancelada por usuario');
+      return;
+    }
+
+    if (response.errorCode || response.errorMessage) {
+      logger.error('Photo', 'Error al tomar foto', response.errorMessage);
+      Alert.alert('Error', 'No se pudo capturar la foto');
       return;
     }
 
     if (response.assets && response.assets[0]) {
       setWorkerPhoto(response.assets[0]);
+      setWorkerErrors(prev => ({ ...prev, photo: undefined }));
+      logger.info('Photo', 'Foto capturada exitosamente');
     }
   };
 
   const registerWorker = async () => {
+    logger.info('WorkerRegistration', 'Iniciando registro de trabajador');
+    setLoading(true);
+    
     try {
-      setLoading(true);
-      
-      const nombreValidation = validateNombre(workerData.nombre);
-      const casaValidation = validateNumeroCasa(workerData.casa);
-      
       const errors = {};
-      if (!nombreValidation.valid) errors.nombre = nombreValidation.message;
-      if (!casaValidation.valid) errors.casa = casaValidation.message;
+      if (!workerData.nombre.trim()) errors.nombre = 'El nombre es requerido';
+      if (!workerData.casa.trim()) errors.casa = 'El número de casa es requerido';
       if (!workerPhoto) errors.photo = 'Se requiere foto del documento';
 
       if (Object.keys(errors).length > 0) {
         setWorkerErrors(errors);
+        logger.info('WorkerRegistration', 'Errores de validación', errors);
+        Alert.alert('Campos Requeridos', 'Por favor completa todos los campos requeridos');
         return;
       }
 
@@ -301,29 +233,34 @@ const VigilanciaApp = () => {
         casa: workerData.casa.trim(),
         fecha: formatDate(),
         hora: formatTime(),
-        foto_url: ''
+        foto_url: workerPhoto.uri || ''
       };
 
+      logger.info('WorkerRegistration', 'Datos del trabajador', workerRecord);
+
       if (isConnected) {
-        await saveWorkerToSheets(workerRecord);
+        logger.info('WorkerRegistration', 'Guardando en línea');
+        // Aquí iría la lógica para guardar en el servidor
+        // const response = await saveWorkerToServer(workerRecord);
       } else {
-        const offlineData = await AsyncStorage.getItem('@workers_offline') || '[]';
-        const parsedData = JSON.parse(offlineData);
+        logger.info('WorkerRegistration', 'Guardando offline');
+        const offlineData = await AsyncStorage.getItem('@workers_offline');
+        const parsedData = offlineData ? JSON.parse(offlineData) : [];
         parsedData.push(workerRecord);
         await AsyncStorage.setItem('@workers_offline', JSON.stringify(parsedData));
       }
 
-      updateDailyStats('trabajadores');
-
+      await updateDailyStats('trabajadores');
       Alert.alert(
-        'Trabajador Registrado',
-        `${workerRecord.trabajador} registrado correctamente para la casa ${workerRecord.casa}`,
+        'Trabajador Registrado', 
+        `${workerRecord.trabajador} registrado correctamente`,
         [{ text: 'OK', onPress: clearWorkerForm }]
       );
+      logger.info('WorkerRegistration', 'Registro completado exitosamente');
 
     } catch (error) {
-      console.error('Error registering worker:', error);
-      Alert.alert('Error', 'Error al registrar trabajador');
+      logger.error('WorkerRegistration', 'Error en registro', error);
+      Alert.alert('Error', 'Error al registrar trabajador. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -333,42 +270,19 @@ const VigilanciaApp = () => {
     setWorkerData({ nombre: '', casa: '' });
     setWorkerPhoto(null);
     setWorkerErrors({});
+    logger.info('Form', 'Formulario de trabajador limpiado');
   };
 
   const updateDailyStats = async (type) => {
-    const newStats = {
-      ...dailyStats,
-      [type]: dailyStats[type] + 1
-    };
-    setDailyStats(newStats);
-    await AsyncStorage.setItem('@daily_stats', JSON.stringify(newStats));
-  };
-
-  const handleWorkerInputChange = (field, value) => {
-    setWorkerData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    if (workerErrors[field]) {
-      setWorkerErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+    try {
+      const newStats = { ...dailyStats, [type]: dailyStats[type] + 1 };
+      setDailyStats(newStats);
+      await AsyncStorage.setItem('@daily_stats', JSON.stringify(newStats));
+      logger.info('Stats', 'Estadísticas actualizadas', newStats);
+    } catch (error) {
+      logger.error('Stats', 'Error actualizando estadísticas', error);
     }
   };
-
-  const renderTabButton = (tabId, title, icon) => (
-    <TouchableOpacity
-      style={[styles.tabButton, currentTab === tabId && styles.activeTab]}
-      onPress={() => setCurrentTab(tabId)}
-    >
-      <Text style={styles.tabIcon}>{icon}</Text>
-      <Text style={[styles.tabText, currentTab === tabId && styles.activeTabText]}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
 
   const renderInput = (label, value, onChangeText, placeholder, error, keyboardType = 'default') => (
     <View style={styles.inputContainer}>
@@ -379,162 +293,22 @@ const VigilanciaApp = () => {
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={COLORS.TEXT_SECONDARY}
+        autoCapitalize="words"
         keyboardType={keyboardType}
-        autoCapitalize={keyboardType === 'phone-pad' ? 'none' : 'words'}
+        editable={!loading}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 
-  const renderManualTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.tabTitle}>Validación Manual</Text>
-      
-      {renderInput(
-        'Código Alfanumérico',
-        manualCode,
-        setManualCode,
-        'Ingresa el código de 6 caracteres',
-        null,
-        'default'
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.validateButton, (!manualCode.trim() || !isConnected || loading) && styles.buttonDisabled]}
-        onPress={validateManualCode}
-        disabled={!manualCode.trim() || !isConnected || loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? 'Validando...' : 'Validar Código'}
-        </Text>
-      </TouchableOpacity>
-
-      {!isConnected && (
-        <Text style={styles.offlineWarning}>
-          ⚠️ Requiere conexión a internet
-        </Text>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.clearButton]}
-        onPress={clearManualValidation}
-      >
-        <Text style={[styles.buttonText, styles.clearButtonText]}>Limpiar</Text>
-      </TouchableOpacity>
-
-      {validationResult && (
-        <View style={[
-          styles.validationResult,
-          validationResult.valid ? styles.validResult : styles.invalidResult
-        ]}>
-          {validationResult.valid ? (
-            <View>
-              <Text style={styles.resultTitle}>✅ Acceso Autorizado</Text>
-              <Text style={styles.resultText}>Visitante: {validationResult.data.visitante}</Text>
-              <Text style={styles.resultText}>Residente: {validationResult.data.residente}</Text>
-              <Text style={styles.resultText}>Casa: {validationResult.data.casa}</Text>
-              <Text style={styles.resultText}>Fecha: {validationResult.data.fecha}</Text>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.resultTitle}>❌ Acceso Denegado</Text>
-              <Text style={styles.resultText}>{validationResult.message}</Text>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-
-  const renderWorkerTab = () => (
-    <ScrollView style={styles.tabContent}>
-      <Text style={styles.tabTitle}>Registro de Trabajadores</Text>
-      
-      {renderInput(
-        'Nombre del Trabajador *',
-        workerData.nombre,
-        (value) => handleWorkerInputChange('nombre', value),
-        'Nombre completo',
-        workerErrors.nombre
-      )}
-
-      {renderInput(
-        'Número de Casa *',
-        workerData.casa,
-        (value) => handleWorkerInputChange('casa', value),
-        'Casa a la que va',
-        workerErrors.casa
-      )}
-
-      <View style={styles.photoSection}>
-        <Text style={styles.photoLabel}>Foto del Documento *</Text>
-        
-        {workerPhoto ? (
-          <View style={styles.photoContainer}>
-            <Image source={{ uri: workerPhoto.uri }} style={styles.photoPreview} />
-            <TouchableOpacity
-              style={[styles.button, styles.changePhotoButton]}
-              onPress={takeWorkerPhoto}
-            >
-              <Text style={[styles.buttonText, styles.changePhotoButtonText]}>Cambiar Foto</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoPlaceholderIcon}>📄</Text>
-            <Text style={styles.photoPlaceholderText}>
-              Toma una foto del documento de identidad
-            </Text>
-            <TouchableOpacity
-              style={[styles.button, styles.takePhotoButton]}
-              onPress={takeWorkerPhoto}
-            >
-              <Text style={styles.buttonText}>Tomar Foto</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {workerErrors.photo && (
-          <Text style={styles.errorText}>{workerErrors.photo}</Text>
-        )}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, styles.registerButton, loading && styles.buttonDisabled]}
-        onPress={registerWorker}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? 'Registrando...' : 'Registrar Trabajador'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.clearButton]}
-        onPress={clearWorkerForm}
-      >
-        <Text style={[styles.buttonText, styles.clearButtonText]}>Limpiar Formulario</Text>
-      </TouchableOpacity>
-
-      {!isConnected && (
-        <Text style={styles.offlineInfo}>
-          📱 Sin conexión - Los datos se sincronizarán automáticamente
-        </Text>
-      )}
-    </ScrollView>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Control de Vigilancia</Text>
-        <View style={styles.statusContainer}>
-          <View style={[styles.connectionStatus, isConnected ? styles.online : styles.offline]}>
-            <Text style={styles.connectionText}>
-              {isConnected ? '🟢 En línea' : '🔴 Sin conexión'}
-            </Text>
-          </View>
+        <View style={[styles.connectionStatus, isConnected ? styles.online : styles.offline]}>
+          <Text style={styles.connectionText}>
+            {isConnected ? '🟢 En línea' : '🔴 Sin conexión'}
+          </Text>
         </View>
         
         <View style={styles.statsContainer}>
@@ -549,269 +323,424 @@ const VigilanciaApp = () => {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
-        {renderTabButton('manual', 'Manual', '⌨️')}
-        {renderTabButton('worker', 'Trabajador', '👷')}
+        <TouchableOpacity
+          style={[styles.tabButton, currentTab === 'manual' && styles.activeTab]}
+          onPress={() => setCurrentTab('manual')}
+          disabled={loading}
+        >
+          <Text style={styles.tabIcon}>⌨️</Text>
+          <Text style={[styles.tabText, currentTab === 'manual' && styles.activeTabText]}>Manual</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, currentTab === 'worker' && styles.activeTab]}
+          onPress={() => setCurrentTab('worker')}
+          disabled={loading}
+        >
+          <Text style={styles.tabIcon}>👷</Text>
+          <Text style={[styles.tabText, currentTab === 'worker' && styles.activeTabText]}>Trabajador</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Tab Content */}
-      <KeyboardAvoidingView
-        style={styles.contentContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAvoidingView 
+        style={styles.contentContainer} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {currentTab === 'manual' && renderManualTab()}
-        {currentTab === 'worker' && renderWorkerTab()}
+        {currentTab === 'manual' ? (
+          <ScrollView 
+            style={styles.tabContent}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.tabTitle}>Validación Manual</Text>
+            
+            {renderInput(
+              'Código Alfanumérico', 
+              manualCode, 
+              setManualCode, 
+              'Ingresa el código de 6 caracteres', 
+              null,
+              'default'
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.button, 
+                styles.validateButton, 
+                (!manualCode.trim() || !isConnected || loading) && styles.buttonDisabled
+              ]}
+              onPress={validateManualCode}
+              disabled={!manualCode.trim() || !isConnected || loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Validando...' : 'Validar Código'}
+              </Text>
+            </TouchableOpacity>
+
+            {!isConnected && (
+              <Text style={styles.offlineWarning}>
+                ⚠️ Requiere conexión a internet
+              </Text>
+            )}
+
+            {validationResult && (
+              <View style={[
+                styles.validationResult, 
+                validationResult.valid ? styles.validResult : styles.invalidResult
+              ]}>
+                {validationResult.valid ? (
+                  <View>
+                    <Text style={styles.resultTitle}>✅ Acceso Autorizado</Text>
+                    <Text style={styles.resultText}>
+                      Visitante: {validationResult.data.visitante}
+                    </Text>
+                    <Text style={styles.resultText}>
+                      Residente: {validationResult.data.residente}
+                    </Text>
+                    <Text style={styles.resultText}>
+                      Casa: {validationResult.data.casa}
+                    </Text>
+                    <Text style={styles.resultText}>
+                      Fecha: {validationResult.data.fecha}
+                    </Text>
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.resultTitle}>❌ Acceso Denegado</Text>
+                    <Text style={styles.resultText}>{validationResult.message}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.button, styles.clearButton]} 
+              onPress={() => { 
+                setManualCode(''); 
+                setValidationResult(null); 
+              }}
+              disabled={loading}
+            >
+              <Text style={[styles.buttonText, styles.clearButtonText]}>Limpiar</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        ) : (
+          <ScrollView 
+            style={styles.tabContent}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.tabTitle}>Registro de Trabajadores</Text>
+            
+            {renderInput(
+              'Nombre del Trabajador *', 
+              workerData.nombre, 
+              (value) => setWorkerData({...workerData, nombre: value}), 
+              'Nombre completo', 
+              workerErrors.nombre
+            )}
+            
+            {renderInput(
+              'Número de Casa *', 
+              workerData.casa, 
+              (value) => setWorkerData({...workerData, casa: value}), 
+              'Casa a la que va', 
+              workerErrors.casa,
+              'numeric'
+            )}
+
+            <View style={styles.photoSection}>
+              <Text style={styles.photoLabel}>Foto del Documento *</Text>
+              
+              {workerPhoto ? (
+                <View style={styles.photoContainer}>
+                  <Image 
+                    source={{ uri: workerPhoto.uri }} 
+                    style={styles.photoPreview}
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity 
+                    style={[styles.button, styles.changePhotoButton]} 
+                    onPress={takeWorkerPhoto}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.buttonText, styles.changePhotoButtonText]}>
+                      Cambiar Foto
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoPlaceholderIcon}>📄</Text>
+                  <Text style={styles.photoPlaceholderText}>
+                    Toma una foto del documento de identidad
+                  </Text>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.takePhotoButton]} 
+                    onPress={takeWorkerPhoto}
+                    disabled={loading}
+                  >
+                    <Text style={styles.buttonText}>Tomar Foto</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {workerErrors.photo && (
+                <Text style={styles.errorText}>{workerErrors.photo}</Text>
+              )}
+            </View>
+
+            <TouchableOpacity 
+              style={[
+                styles.button, 
+                styles.registerButton, 
+                loading && styles.buttonDisabled
+              ]} 
+              onPress={registerWorker} 
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Registrando...' : 'Registrar Trabajador'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.button, styles.clearButton]} 
+              onPress={clearWorkerForm}
+              disabled={loading}
+            >
+              <Text style={[styles.buttonText, styles.clearButtonText]}>
+                Limpiar Formulario
+              </Text>
+            </TouchableOpacity>
+
+            {!isConnected && (
+              <Text style={styles.offlineInfo}>
+                📱 Sin conexión - Los datos se sincronizarán automáticamente
+              </Text>
+            )}
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.BACKGROUND 
   },
-  header: {
-    backgroundColor: COLORS.SURFACE,
-    padding: 20,
-    paddingBottom: 16,
+  header: { 
+    backgroundColor: COLORS.SURFACE, 
+    padding: 20, 
+    paddingBottom: 16, 
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    textAlign: 'center',
-    marginBottom: 12,
+  title: { 
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: COLORS.TEXT_PRIMARY, 
+    textAlign: 'center', 
+    marginBottom: 12 
   },
-  statusContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
+  connectionStatus: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 16, 
+    alignItems: 'center', 
+    alignSelf: 'center', 
+    marginBottom: 16 
   },
-  connectionStatus: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignItems: 'center',
+  online: { backgroundColor: '#E8F5E8' },
+  offline: { backgroundColor: '#FEE8E8' },
+  connectionText: { fontSize: 14, fontWeight: '500' },
+  statsContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
+    marginTop: 8 
   },
-  online: {
-    backgroundColor: '#E8F5E8',
+  statItem: { alignItems: 'center' },
+  statNumber: { 
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: COLORS.PRIMARY 
   },
-  offline: {
-    backgroundColor: '#FEE8E8',
+  statLabel: { 
+    fontSize: 12, 
+    color: COLORS.TEXT_SECONDARY, 
+    marginTop: 4 
   },
-  connectionText: {
-    fontSize: 14,
-    fontWeight: '500',
+  tabContainer: { 
+    flexDirection: 'row', 
+    backgroundColor: COLORS.SURFACE, 
+    paddingHorizontal: 4, 
+    paddingVertical: 4 
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
+  tabButton: { 
+    flex: 1, 
+    alignItems: 'center', 
+    paddingVertical: 12, 
+    borderRadius: 8, 
+    marginHorizontal: 2 
   },
-  statItem: {
-    alignItems: 'center',
+  activeTab: { backgroundColor: COLORS.PRIMARY },
+  tabIcon: { fontSize: 20, marginBottom: 4 },
+  tabText: { 
+    fontSize: 12, 
+    color: COLORS.TEXT_SECONDARY, 
+    fontWeight: '500' 
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.PRIMARY,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
-    marginTop: 4,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.SURFACE,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 2,
-  },
-  activeTab: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  tabIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  tabText: {
-    fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: COLORS.SURFACE,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  tabContent: {
-    flex: 1,
+  activeTabText: { color: COLORS.SURFACE },
+  contentContainer: { flex: 1 },
+  tabContent: { flex: 1 },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 40
   },
-  tabTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 20,
-    textAlign: 'center',
+  tabTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: COLORS.TEXT_PRIMARY, 
+    marginBottom: 20, 
+    textAlign: 'center' 
   },
-  inputContainer: {
-    marginBottom: 16,
+  inputContainer: { marginBottom: 16 },
+  label: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: COLORS.TEXT_PRIMARY, 
+    marginBottom: 8 
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 8,
+  input: { 
+    borderWidth: 1, 
+    borderColor: COLORS.BORDER, 
+    borderRadius: 8, 
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
+    fontSize: 16, 
+    backgroundColor: COLORS.SURFACE, 
+    color: COLORS.TEXT_PRIMARY 
   },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: COLORS.SURFACE,
-    color: COLORS.TEXT_PRIMARY,
+  inputError: { borderColor: COLORS.ERROR },
+  errorText: { 
+    color: COLORS.ERROR, 
+    fontSize: 14, 
+    marginTop: 4 
   },
-  inputError: {
-    borderColor: COLORS.ERROR,
+  button: { 
+    paddingVertical: 14, 
+    borderRadius: 8, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    minHeight: 48, 
+    marginBottom: 12 
   },
-  errorText: {
-    color: COLORS.ERROR,
-    fontSize: 14,
-    marginTop: 4,
+  validateButton: { backgroundColor: COLORS.PRIMARY },
+  registerButton: { backgroundColor: COLORS.PRIMARY },
+  clearButton: { 
+    backgroundColor: 'transparent', 
+    borderWidth: 2, 
+    borderColor: COLORS.PRIMARY 
   },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    marginBottom: 12,
+  changePhotoButton: { 
+    backgroundColor: 'transparent', 
+    borderWidth: 2, 
+    borderColor: COLORS.PRIMARY, 
+    width: 150 
   },
-  validateButton: {
-    backgroundColor: COLORS.PRIMARY,
+  takePhotoButton: { 
+    backgroundColor: COLORS.PRIMARY, 
+    width: 150 
   },
-  registerButton: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  clearButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-  },
-  changePhotoButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-    width: 150,
-  },
-  takePhotoButton: {
-    backgroundColor: COLORS.PRIMARY,
-    width: 150,
-  },
-  buttonDisabled: {
+  buttonDisabled: { 
     backgroundColor: COLORS.BORDER,
+    opacity: 0.6
   },
-  buttonText: {
-    color: COLORS.SURFACE,
-    fontSize: 16,
-    fontWeight: '600',
+  buttonText: { 
+    color: COLORS.SURFACE, 
+    fontSize: 16, 
+    fontWeight: '600' 
   },
-  clearButtonText: {
-    color: COLORS.PRIMARY,
+  clearButtonText: { color: COLORS.PRIMARY },
+  changePhotoButtonText: { color: COLORS.PRIMARY },
+  offlineWarning: { 
+    color: COLORS.WARNING, 
+    fontSize: 14, 
+    textAlign: 'center', 
+    marginTop: 8, 
+    marginBottom: 16 
   },
-  changePhotoButtonText: {
-    color: COLORS.PRIMARY,
+  offlineInfo: { 
+    color: COLORS.INFO, 
+    fontSize: 14, 
+    textAlign: 'center', 
+    marginTop: 16, 
+    fontStyle: 'italic' 
   },
-  offlineWarning: {
-    color: COLORS.WARNING,
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+  validationResult: { 
+    marginTop: 20, 
+    padding: 16, 
+    borderRadius: 12, 
+    borderWidth: 2 
   },
-  offlineInfo: {
-    color: COLORS.INFO,
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 16,
-    fontStyle: 'italic',
+  validResult: { 
+    backgroundColor: '#E8F5E8', 
+    borderColor: COLORS.SUCCESS 
   },
-  validationResult: {
-    marginTop: 20,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
+  invalidResult: { 
+    backgroundColor: '#FEE8E8', 
+    borderColor: COLORS.ERROR 
   },
-  validResult: {
-    backgroundColor: '#E8F5E8',
-    borderColor: COLORS.SUCCESS,
+  resultTitle: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginBottom: 8 
   },
-  invalidResult: {
-    backgroundColor: '#FEE8E8',
-    borderColor: COLORS.ERROR,
+  resultText: { 
+    fontSize: 14, 
+    marginBottom: 4, 
+    color: COLORS.TEXT_PRIMARY 
   },
-  resultTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  photoSection: { marginBottom: 20 },
+  photoLabel: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: COLORS.TEXT_PRIMARY, 
+    marginBottom: 12 
   },
-  resultText: {
-    fontSize: 14,
-    marginBottom: 4,
-    color: COLORS.TEXT_PRIMARY,
-  },
-  photoSection: {
-    marginBottom: 20,
-  },
-  photoLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+  photoContainer: { alignItems: 'center' },
+  photoPreview: { 
+    width: 200, 
+    height: 150, 
+    borderRadius: 12, 
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER
   },
-  photoContainer: {
-    alignItems: 'center',
-  },
-  photoPreview: {
-    width: 200,
-    height: 150,
+  photoPlaceholder: { 
+    alignItems: 'center', 
+    padding: 24, 
+    borderWidth: 2, 
+    borderColor: COLORS.BORDER, 
+    borderStyle: 'dashed', 
     borderRadius: 12,
-    marginBottom: 12,
+    backgroundColor: COLORS.SURFACE
   },
-  photoPlaceholder: {
-    alignItems: 'center',
-    padding: 24,
-    borderWidth: 2,
-    borderColor: COLORS.BORDER,
-    borderStyle: 'dashed',
-    borderRadius: 12,
+  photoPlaceholderIcon: { 
+    fontSize: 48, 
+    marginBottom: 12 
   },
-  photoPlaceholderIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  photoPlaceholderText: {
-    fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
-    textAlign: 'center',
-    marginBottom: 16,
+  photoPlaceholderText: { 
+    fontSize: 14, 
+    color: COLORS.TEXT_SECONDARY, 
+    textAlign: 'center', 
+    marginBottom: 16 
   },
 });
 
