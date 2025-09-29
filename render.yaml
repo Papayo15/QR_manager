@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: qr-manager-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GOOGLE_CLIENT_EMAIL
+        value: qr-manager-service@qr-manager-473614.iam.gserviceaccount.com
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: DRIVE_FOLDER_ID
+        value: 1poSdG5u06tRid-JelRfKymd6jbb86q9C
+      - key: SHEET_VIGILANCIA_ID
+        value: 1hdSKlGGj4DMT4KOm6P3ZouY9csFJX3_eRjM5k_hH_j4
+      - key: SHEET_RESIDENTE_ID
+        value: 1dK5inIIoSy3939I3IZlR2ewWBq4oJH4pNdRZALEJD9M

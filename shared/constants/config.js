@@ -1,0 +1,20 @@
+export const CONFIG = {
+  SHEETS: {
+    VIGILANCIA: '1hdSKlGGj4DMT4KOm6P3ZouY9csFJX3_eRjM5k_hH_j4',
+    RESIDENTE: '1dK5inIIoSy3939I3IZlR2ewWBq4oJH4pNdRZALEJD9M'
+  },
+  BACKEND_URL: 'https://qr-manager-backend.onrender.com',
+  QR_CODE_SIZE: 200,
+  ALPHA_CODE_LENGTH: 6
+};
+
+export const COLORS = {
+  PRIMARY: '#2196F3',
+  SECONDARY: '#4CAF50',
+  ERROR: '#F44336',
+  BACKGROUND: '#F5F5F5',
+  SURFACE: '#FFFFFF',
+  TEXT_PRIMARY: '#212121',
+  TEXT_SECONDARY: '#757575',
+  BORDER: '#E0E0E0'
+};

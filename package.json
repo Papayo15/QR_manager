@@ -1,0 +1,7 @@
+{
+  "name": "qr-manager",
+  "scripts": {
+    "android-residente": "cd apps/ResidenteApp && npx react-native run-android",
+    "android-vigilancia": "cd apps/VigilanciaApp && npx react-native run-android"
+  }
+}
