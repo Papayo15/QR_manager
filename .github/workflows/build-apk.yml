@@ -30,20 +30,18 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install dependencies
-      run: |
-        cd apps/ResidenteApp
-        npm install
+    - name: Make gradlew executable
+      run: chmod +x apps/ResidenteApp/android/gradlew
 
     - name: Build Android APK
       run: |
         cd apps/ResidenteApp/android
-        ./gradlew assembleRelease
+        ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: ResidenteApp-release.apk
+        name: ResidenteApp-release
         path: apps/ResidenteApp/android/app/build/outputs/apk/release/app-release.apk
 
   build-vigilancia:
@@ -68,18 +66,16 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install dependencies
-      run: |
-        cd apps/VigilanciaApp
-        npm install
+    - name: Make gradlew executable
+      run: chmod +x apps/VigilanciaApp/android/gradlew
 
     - name: Build Android APK
       run: |
         cd apps/VigilanciaApp/android
-        ./gradlew assembleRelease
+        ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: VigilanciaApp-release.apk
+        name: VigilanciaApp-release
         path: apps/VigilanciaApp/android/app/build/outputs/apk/release/app-release.apk
