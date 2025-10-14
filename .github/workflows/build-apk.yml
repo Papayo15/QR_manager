@@ -20,6 +20,8 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: apps/ResidenteApp/package-lock.json
 
     - name: Setup Java
       uses: actions/setup-java@v4
@@ -30,13 +32,19 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: Install root dependencies
+      run: npm install
+
+    - name: Install app dependencies
+      working-directory: apps/ResidenteApp
+      run: npm install --legacy-peer-deps
+
     - name: Make gradlew executable
       run: chmod +x apps/ResidenteApp/android/gradlew
 
     - name: Build Android APK
-      run: |
-        cd apps/ResidenteApp/android
-        ./gradlew assembleRelease --no-daemon
+      working-directory: apps/ResidenteApp/android
+      run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -56,6 +64,8 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: apps/VigilanciaApp/package-lock.json
 
     - name: Setup Java
       uses: actions/setup-java@v4
@@ -66,13 +76,19 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: Install root dependencies
+      run: npm install
+
+    - name: Install app dependencies
+      working-directory: apps/VigilanciaApp
+      run: npm install --legacy-peer-deps
+
     - name: Make gradlew executable
       run: chmod +x apps/VigilanciaApp/android/gradlew
 
     - name: Build Android APK
-      run: |
-        cd apps/VigilanciaApp/android
-        ./gradlew assembleRelease --no-daemon
+      working-directory: apps/VigilanciaApp/android
+      run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
