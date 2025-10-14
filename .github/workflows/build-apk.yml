@@ -1,0 +1,85 @@
+name: Build Android APKs
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-residente:
+    name: Build ResidenteApp
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install dependencies
+      run: |
+        cd apps/ResidenteApp
+        npm install
+
+    - name: Build Android APK
+      run: |
+        cd apps/ResidenteApp/android
+        ./gradlew assembleRelease
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ResidenteApp-release.apk
+        path: apps/ResidenteApp/android/app/build/outputs/apk/release/app-release.apk
+
+  build-vigilancia:
+    name: Build VigilanciaApp
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install dependencies
+      run: |
+        cd apps/VigilanciaApp
+        npm install
+
+    - name: Build Android APK
+      run: |
+        cd apps/VigilanciaApp/android
+        ./gradlew assembleRelease
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: VigilanciaApp-release.apk
+        path: apps/VigilanciaApp/android/app/build/outputs/apk/release/app-release.apk

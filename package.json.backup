@@ -1,0 +1,16 @@
+{
+  "name": "qr-manager",
+  "scripts": {
+    "android-residente": "cd apps/ResidenteApp && npx react-native run-android",
+    "android-vigilancia": "cd apps/VigilanciaApp && npx react-native run-android"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/netinfo": "^11.4.1",
+    "expo": "~54.0.0",
+    "lucide-react": "^0.545.0",
+    "react-native-image-picker": "^8.2.1",
+    "react-native-qrcode-svg": "^6.3.15",
+    "react-native-svg": "^15.14.0"
+  }
+}

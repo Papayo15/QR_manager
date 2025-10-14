@@ -3,429 +3,216 @@ import {
   SafeAreaView,
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
+  ActivityIndicator,
   StyleSheet,
   Alert,
-  ScrollView,
-  Linking,
-  Platform,
-  Modal,
+  TouchableOpacity
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
 
-const CONFIG = {
-  BACKEND_URL: 'https://qr-manager-3z8x.onrender.com',
-  ALPHA_CODE_LENGTH: 6,
-  TIMEOUT: 30000,
-  SHEET_ID: '1h_fEz5tDjNmdZ-57F2CoL5W6RjjAF7Yhw4ttJgypb7o',
-  CODE_EXPIRATION_HOURS: 24,
+const API_BASE_URL = 'https://qrvisitas.onrender.com';
+
+// ⏱️ Timeouts optimizados para Render (plan gratuito)
+const TIMEOUTS = {
+  FIRST_ATTEMPT: 90000,   // 90s - Despertar servicio dormido
+  SECOND_ATTEMPT: 45000,  // 45s - Ya debería estar despierto
+  THIRD_ATTEMPT: 30000    // 30s - Última oportunidad
 };
 
-const COLORS = {
-  PRIMARY: '#4CAF50',
-  SECONDARY: '#8BC34A',
-  ACCENT: '#2E7D32',
-  BACKGROUND: '#F1F8E9',
-  SURFACE: '#FFFFFF',
-  TEXT_PRIMARY: '#1B5E20',
-  TEXT_SECONDARY: '#558B2F',
-  BORDER: '#C5E1A5',
-  ERROR: '#F44336',
-  WARNING: '#FFC107',
-  INFO: '#2196F3',
-};
-
-const logger = {
-  info: (tag: string, message: string, data: any = null) => {
-    console.log('[INFO] [' + tag + '] ' + message, data || '');
-  },
-  error: (tag: string, message: string, error: any = null) => {
-    console.error('[ERROR] [' + tag + '] ' + message, error || '');
-  }
-};
-
-const formatDate = (): string => new Date().toLocaleDateString('es-MX');
-const formatTime = (): string => new Date().toLocaleTimeString('es-MX', { 
-  hour: '2-digit', 
-  minute: '2-digit', 
-  hour12: false 
-});
-
-const generateCode = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < CONFIG.ALPHA_CODE_LENGTH; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-};
-
-interface GeneratedCode {
-  code: string;
-  visitante: string;
-  residente: string;
-  casa: string;
-  fecha: string;
-  hora: string;
+interface ApiResponse {
+  message: string;
+  timestamp: string;
 }
 
-const ResidenteApp: React.FC = () => {
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [visitante, setVisitante] = useState<string>('');
-  const [residente, setResidente] = useState<string>('');
-  const [casa, setCasa] = useState<string>('');
-  const [generatedCode, setGeneratedCode] = useState<GeneratedCode | null>(null);
-  const [errors, setErrors] = useState<{visitante?: string; residente?: string; casa?: string}>({});
-  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [confirmAction, setConfirmAction] = useState<(() => void)>(() => () => {});
-  const [confirmMessage, setConfirmMessage] = useState<string>('');
+const fetchWithTimeout = async (
+  url: string,
+  timeout: number,
+  attemptNumber: number
+): Promise<ApiResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    console.log(`🔄 Intento ${attemptNumber} - Timeout: ${timeout / 1000}s`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Respuesta exitosa:', data);
+    return data;
+
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout después de ${timeout / 1000}s`);
+    }
+    throw error;
+  }
+};
+
+const App = () => {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ApiResponse | null>(null);
+  const [error, setError] = useState<string>('');
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
-    logger.info('App', 'Inicializando ResidenteApp');
-    const cleanup = initializeApp();
-    
-    return () => {
-      if (cleanup && typeof cleanup.then === 'function') {
-        cleanup.then((unsubscribe: any) => {
-          if (unsubscribe && typeof unsubscribe === 'function') {
-            unsubscribe();
-          }
-        });
-      }
-    };
+    testConnection();
   }, []);
 
-  const initializeApp = async () => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected ?? false);
-      logger.info('Network', 'Estado de red: ' + (state.isConnected ? 'Conectado' : 'Desconectado'));
-    });
-    return unsubscribe;
-  };
+  const testConnection = async () => {
+    setLoading(true);
+    setError('');
+    setAttempt(0);
+    setRetrying(false);
 
-  const showConfirmation = (message: string, action: () => void) => {
-    setConfirmMessage(message);
-    setConfirmAction(() => action);
-    setShowConfirmModal(true);
-  };
-
-  const validateForm = (): boolean => {
-    const newErrors: {visitante?: string; residente?: string; casa?: string} = {};
-    
-    if (!visitante.trim()) {
-      newErrors.visitante = 'El nombre del visitante es obligatorio';
-    }
-    
-    if (!residente.trim()) {
-      newErrors.residente = 'Tu nombre es obligatorio';
-    }
-    
-    if (!casa.trim()) {
-      newErrors.casa = 'El numero de casa es obligatorio';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleGenerateCode = () => {
-    if (!validateForm()) {
-      Alert.alert('Campos Requeridos', 'Por favor completa todos los campos');
+    // 🔄 Intento 1: 90 segundos (despertar Render)
+    try {
+      setAttempt(1);
+      const result = await fetchWithTimeout(
+        `${API_BASE_URL}/health`,
+        TIMEOUTS.FIRST_ATTEMPT,
+        1
+      );
+      setData(result);
+      setLoading(false);
       return;
+    } catch (err: any) {
+      console.log('❌ Intento 1 falló:', err.message);
     }
-    
-    showConfirmation(
-      'Generar codigo de acceso para ' + visitante.trim() + '?',
-      confirmGenerateCode
+
+    // 🔄 Intento 2: 45 segundos
+    try {
+      setAttempt(2);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await fetchWithTimeout(
+        `${API_BASE_URL}/health`,
+        TIMEOUTS.SECOND_ATTEMPT,
+        2
+      );
+      setData(result);
+      setLoading(false);
+      return;
+    } catch (err: any) {
+      console.log('❌ Intento 2 falló:', err.message);
+    }
+
+    // 🔄 Intento 3: 30 segundos
+    try {
+      setAttempt(3);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await fetchWithTimeout(
+        `${API_BASE_URL}/health`,
+        TIMEOUTS.THIRD_ATTEMPT,
+        3
+      );
+      setData(result);
+      setLoading(false);
+      return;
+    } catch (err: any) {
+      console.log('❌ Intento 3 falló:', err.message);
+    }
+
+    // ❌ Todos los intentos fallaron
+    setLoading(false);
+    setError(
+      'No se pudo conectar con el servidor después de 3 intentos.\n\n' +
+      '🔍 Posibles causas:\n' +
+      '• El servidor está inactivo en Render\n' +
+      '• Sin horas gratuitas disponibles\n' +
+      '• Problemas de conexión\n\n' +
+      '💡 Verifica el estado en:\nhttps://qrvisitas.onrender.com/health'
     );
   };
 
-  const confirmGenerateCode = async (): Promise<void> => {
-    setLoading(true);
-    let timeoutWarning: any = null;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <ActivityIndicator size="large" color="#4A90E2" />
+          <Text style={styles.title}>
+            {attempt === 0 && '🚀 Iniciando conexión...'}
+            {attempt === 1 && '⏳ Despertando servidor...'}
+            {attempt === 2 && '🔄 Reintentando conexión...'}
+            {attempt === 3 && '⏱️ Último intento...'}
+          </Text>
+          <Text style={styles.attemptText}>
+            Intento {attempt} de 3
+          </Text>
+          <Text style={styles.timeoutText}>
+            {attempt === 1 && 'Tiempo máximo: 90 segundos'}
+            {attempt === 2 && 'Tiempo máximo: 45 segundos'}
+            {attempt === 3 && 'Tiempo máximo: 30 segundos'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-    try {
-      const code = generateCode();
-      const codeData: GeneratedCode = {
-        code: code,
-        visitante: visitante.trim(),
-        residente: residente.trim(),
-        casa: casa.trim(),
-        fecha: formatDate(),
-        hora: formatTime(),
-      };
-
-      if (isConnected) {
-        timeoutWarning = setTimeout(() => {
-          Alert.alert('Espera', 'El servidor esta despertando...');
-        }, 5000);
-
-        const response = await fetch(CONFIG.BACKEND_URL + '/api/sheets/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sheetId: CONFIG.SHEET_ID,
-            data: {
-              tipo: 'CODIGO_QR',
-              codigo: code,
-              visitante: codeData.visitante,
-              residente: codeData.residente,
-              casa: codeData.casa,
-              fecha: codeData.fecha,
-              hora: codeData.hora,
-              resultado: 'ACTIVO'
-            }
-          })
-        });
-
-        if (timeoutWarning) clearTimeout(timeoutWarning);
-
-        if (!response.ok) {
-          throw new Error('Error al guardar el codigo');
-        }
-
-        await AsyncStorage.setItem('@last_code', JSON.stringify(codeData));
-        setGeneratedCode(codeData);
-        
-        Alert.alert(
-          'Codigo Generado',
-          'Codigo: ' + code + '\n' +
-          'Valido por 24 horas\n' +
-          'Un solo uso\n\n' +
-          'Visitante: ' + codeData.visitante + '\n' +
-          'Casa: ' + codeData.casa
-        );
-      } else {
-        Alert.alert('Sin Conexion', 'No se puede generar codigo sin internet');
-      }
-    } catch (error) {
-      if (timeoutWarning) clearTimeout(timeoutWarning);
-      logger.error('GenerateCode', 'Error', error);
-      Alert.alert('Error', 'No se pudo generar el codigo');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const clearForm = (): void => {
-    setVisitante('');
-    setResidente('');
-    setCasa('');
-    setGeneratedCode(null);
-    setErrors({});
-  };
-
-  const handleClearForm = () => {
-    showConfirmation('Limpiar formulario y codigo generado?', clearForm);
-  };
-
-  const shareCode = async (): Promise<void> => {
-    if (!generatedCode) return;
-
-    const message = 
-      'Codigo de acceso: ' + generatedCode.code + '\n' +
-      'Visitante: ' + generatedCode.visitante + '\n' +
-      'Casa: ' + generatedCode.casa + '\n' +
-      'Fecha: ' + generatedCode.fecha + ' ' + generatedCode.hora + '\n' +
-      'Valido por 24 horas - Un solo uso';
-
-    const whatsappUrl = 'whatsapp://send?text=' + encodeURIComponent(message);
-    
-    try {
-      const canOpen = await Linking.canOpenURL(whatsappUrl);
-      if (canOpen) {
-        await Linking.openURL(whatsappUrl);
-      } else {
-        Alert.alert('WhatsApp', 'No se pudo abrir WhatsApp');
-      }
-    } catch (error) {
-      logger.error('Share', 'Error', error);
-      Alert.alert('Error', 'No se pudo compartir el codigo');
-    }
-  };
-
-  const renderInput = (
-    label: string,
-    value: string,
-    onChangeText: (text: string) => void,
-    placeholder: string,
-    error: string | undefined,
-    keyboardType: any = 'default'
-  ) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.label}>{label} *</Text>
-      <TextInput
-        style={[styles.input, error && styles.inputError]}
-        value={value}
-        onChangeText={(text) => {
-          onChangeText(text);
-          setErrors((prev) => ({ ...prev, [label.toLowerCase()]: undefined }));
-        }}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.TEXT_SECONDARY}
-        autoCapitalize="words"
-        keyboardType={keyboardType}
-        editable={!loading}
-      />
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  );
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorTitle}>Error de Conexión</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={testConnection}
+            disabled={retrying}
+          >
+            <Text style={styles.retryButtonText}>
+              🔄 Reintentar Conexión
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Generador de Codigos QR</Text>
-        <View style={[styles.connectionStatus, isConnected ? styles.online : styles.offline]}>
-          <Text style={styles.connectionText}>
-            {isConnected ? 'En linea' : 'Sin conexion'}
+      <View style={styles.content}>
+        <Text style={styles.successIcon}>✅</Text>
+        <Text style={styles.successTitle}>ResidenteApp</Text>
+        <Text style={styles.successSubtitle}>Conectado al Servidor</Text>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Estado:</Text>
+          <Text style={styles.infoValue}>{data?.message || 'Operativo'}</Text>
+        </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Servidor:</Text>
+          <Text style={styles.infoValue}>Render Cloud</Text>
+        </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Última actualización:</Text>
+          <Text style={styles.infoValue}>
+            {data?.timestamp
+              ? new Date(data.timestamp).toLocaleString('es-MX')
+              : 'N/A'}
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={testConnection}
+        >
+          <Text style={styles.refreshButtonText}>🔄 Verificar Conexión</Text>
+        </TouchableOpacity>
       </View>
-
-      <ScrollView 
-        style={styles.content} 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Informacion del Visitante</Text>
-          
-          {renderInput(
-            'Nombre del Visitante',
-            visitante,
-            setVisitante,
-            'Nombre completo',
-            errors.visitante
-          )}
-          
-          {renderInput(
-            'Tu Nombre (Residente)',
-            residente,
-            setResidente,
-            'Tu nombre',
-            errors.residente
-          )}
-          
-          {renderInput(
-            'Numero de Casa',
-            casa,
-            setCasa,
-            'Numero de tu casa',
-            errors.casa,
-            'default'
-          )}
-
-          <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>Informacion Importante</Text>
-            <Text style={styles.infoBoxText}>
-              - Los codigos expiran en 24 horas{'\n'}
-              - Cada codigo solo puede usarse una vez{'\n'}
-              - El visitante debe mostrar el codigo al vigilante
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.generateButton,
-              (!isConnected || loading) && styles.buttonDisabled
-            ]}
-            onPress={handleGenerateCode}
-            disabled={!isConnected || loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Generando...' : 'Generar Codigo'}
-            </Text>
-          </TouchableOpacity>
-
-          {!isConnected && (
-            <Text style={styles.offlineWarning}>
-              Requiere conexion a internet para generar codigos
-            </Text>
-          )}
-        </View>
-
-        {generatedCode && (
-          <View style={styles.codeSection}>
-            <Text style={styles.sectionTitle}>Codigo Generado</Text>
-            
-            <View style={styles.qrContainer}>
-              <QRCode
-                value={generatedCode.code}
-                size={200}
-                color={COLORS.TEXT_PRIMARY}
-                backgroundColor={COLORS.SURFACE}
-              />
-            </View>
-
-            <View style={styles.codeDetails}>
-              <Text style={styles.codeText}>Codigo: {generatedCode.code}</Text>
-              <Text style={styles.detailText}>Visitante: {generatedCode.visitante}</Text>
-              <Text style={styles.detailText}>Residente: {generatedCode.residente}</Text>
-              <Text style={styles.detailText}>Casa: {generatedCode.casa}</Text>
-              <Text style={styles.detailText}>
-                Generado: {generatedCode.fecha} {generatedCode.hora}
-              </Text>
-              <Text style={styles.expirationText}>
-                Valido por 24 horas - Un solo uso
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.shareButton]}
-              onPress={shareCode}
-            >
-              <Text style={styles.buttonText}>Compartir por WhatsApp</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.clearButton]}
-              onPress={handleClearForm}
-            >
-              <Text style={[styles.buttonText, styles.clearButtonText]}>
-                Generar Nuevo Codigo
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={showConfirmModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowConfirmModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Confirmacion</Text>
-            <Text style={styles.modalMessage}>{confirmMessage}</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowConfirmModal(false)}
-              >
-                <Text style={styles.modalButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={() => {
-                  setShowConfirmModal(false);
-                  confirmAction();
-                }}
-              >
-                <Text style={[styles.modalButtonText, {color: '#FFF'}]}>
-                  Confirmar
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -433,247 +220,117 @@ const ResidenteApp: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  header: {
-    backgroundColor: COLORS.SURFACE,
-    padding: 20,
-    paddingBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  connectionStatus: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  online: {
-    backgroundColor: '#E8F5E8',
-  },
-  offline: {
-    backgroundColor: '#FEE8E8',
-  },
-  connectionText: {
-    fontSize: 14,
-    fontWeight: '500',
+    backgroundColor: '#f5f7fa'
   },
   content: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  formSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 16,
+  title: {
+    fontSize: 18,
+    marginTop: 20,
+    color: '#2c3e50',
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 8,
+    textAlign: 'center'
   },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: COLORS.SURFACE,
-    color: COLORS.TEXT_PRIMARY,
+  attemptText: {
+    fontSize: 14,
+    marginTop: 12,
+    color: '#7f8c8d',
+    fontWeight: '500'
   },
-  inputError: {
-    borderColor: COLORS.ERROR,
+  timeoutText: {
+    fontSize: 12,
+    marginTop: 8,
+    color: '#95a5a6',
+    fontStyle: 'italic'
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: 16
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#e74c3c',
+    marginBottom: 16
   },
   errorText: {
-    color: COLORS.ERROR,
     fontSize: 14,
-    marginTop: 4,
-  },
-  infoBox: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 16,
-    marginVertical: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
-  },
-  infoBoxTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 8,
-  },
-  infoBoxText: {
-    fontSize: 14,
-    color: COLORS.TEXT_PRIMARY,
-    lineHeight: 20,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    marginBottom: 12,
-  },
-  generateButton: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  shareButton: {
-    backgroundColor: '#25D366',
-  },
-  clearButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-  },
-  buttonDisabled: {
-    backgroundColor: COLORS.BORDER,
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.SURFACE,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  clearButtonText: {
-    color: COLORS.PRIMARY,
-  },
-  offlineWarning: {
-    color: COLORS.WARNING,
-    fontSize: 14,
+    color: '#555',
     textAlign: 'center',
-    marginTop: 8,
+    lineHeight: 22,
+    marginBottom: 24,
+    paddingHorizontal: 16
   },
-  codeSection: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    padding: 20,
+  retryButton: {
+    backgroundColor: '#4A90E2',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 8,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowOpacity: 0.2,
+    shadowRadius: 4
   },
-  qrContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: COLORS.BORDER,
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600'
   },
-  codeDetails: {
-    backgroundColor: COLORS.BACKGROUND,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+  successIcon: {
+    fontSize: 64,
+    marginBottom: 16
   },
-  codeText: {
-    fontSize: 24,
+  successTitle: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
-    textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: 2,
+    color: '#27ae60',
+    marginBottom: 8
   },
-  detailText: {
-    fontSize: 14,
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 6,
+  successSubtitle: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    marginBottom: 32
   },
-  expirationText: {
-    fontSize: 13,
-    color: COLORS.WARNING,
-    fontWeight: '600',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    padding: 24,
+  infoBox: {
     width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3
   },
-  modalButtonCancel: {
-    backgroundColor: COLORS.BACKGROUND,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
+  infoLabel: {
+    fontSize: 12,
+    color: '#95a5a6',
+    marginBottom: 4,
+    fontWeight: '600'
   },
-  modalButtonConfirm: {
-    backgroundColor: COLORS.PRIMARY,
+  infoValue: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500'
   },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+  refreshButton: {
+    marginTop: 24,
+    backgroundColor: '#3498db',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8
   },
+  refreshButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600'
+  }
 });
 
-export default ResidenteApp;
+export default App;

@@ -1,7 +1,28 @@
 {
   "name": "qr-manager",
+  "version": "1.0.0",
   "scripts": {
     "android-residente": "cd apps/ResidenteApp && npx react-native run-android",
-    "android-vigilancia": "cd apps/VigilanciaApp && npx react-native run-android"
+    "android-vigilancia": "cd apps/VigilanciaApp && npx react-native run-android",
+    "start-residente": "cd apps/ResidenteApp && npx react-native start",
+    "start-vigilancia": "cd apps/VigilanciaApp && npx react-native start"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/netinfo": "^11.4.1",
+    "react-native-image-picker": "^8.2.1",
+    "react-native-qrcode-svg": "^6.3.15",
+    "react-native-svg": "^15.14.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.2",
+    "@babel/runtime": "^7.25.0",
+    "@react-native/babel-preset": "^0.76.5",
+    "@react-native/metro-config": "^0.76.5",
+    "@types/react": "^18.3.5",
+    "typescript": "^5.6.3"
   }
 }
