@@ -10,7 +10,7 @@ app.use(express.json());
 
 const sheetsService = require('./services/sheetsService');
 
-// Health check endpoint para Koyeb
+// Health check endpoint para UptimeRobot
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -30,9 +30,10 @@ app.get('/', (req, res) => {
   res.json({
     message: '🏠 QR Manager Backend v2.0',
     status: 'online',
-    platform: 'Koyeb',
+    platform: 'Render.com',
+    keepAlive: 'UptimeRobot monitoring /health',
     endpoints: [
-      'GET /health - Health check',
+      'GET /health - Health check (monitored by UptimeRobot)',
       'POST /api/register-code',
       'POST /api/validate-qr',
       'POST /api/register-worker',

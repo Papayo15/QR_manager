@@ -11,11 +11,11 @@ import {
 
 const API_BASE_URL = 'https://qrvisitas.onrender.com';
 
-// ⏱️ Timeouts optimizados para Render (plan gratuito)
+// ⏱️ Timeouts optimizados para Render + UptimeRobot (siempre activo)
 const TIMEOUTS = {
-  FIRST_ATTEMPT: 90000,   // 90s - Despertar servicio dormido
-  SECOND_ATTEMPT: 45000,  // 45s - Ya debería estar despierto
-  THIRD_ATTEMPT: 30000    // 30s - Última oportunidad
+  FIRST_ATTEMPT: 15000,   // 15s - Servidor siempre despierto con UptimeRobot
+  SECOND_ATTEMPT: 15000,  // 15s - Reintento rápido
+  THIRD_ATTEMPT: 15000    // 15s - Última oportunidad
 };
 
 interface ApiResponse {
@@ -146,7 +146,7 @@ const App = () => {
           <ActivityIndicator size="large" color="#E74C3C" />
           <Text style={styles.title}>
             {attempt === 0 && '🚀 Iniciando conexión...'}
-            {attempt === 1 && '⏳ Despertando servidor...'}
+            {attempt === 1 && '🔄 Conectando al servidor...'}
             {attempt === 2 && '🔄 Reintentando conexión...'}
             {attempt === 3 && '⏱️ Último intento...'}
           </Text>
@@ -154,9 +154,9 @@ const App = () => {
             Intento {attempt} de 3
           </Text>
           <Text style={styles.timeoutText}>
-            {attempt === 1 && 'Tiempo máximo: 90 segundos'}
-            {attempt === 2 && 'Tiempo máximo: 45 segundos'}
-            {attempt === 3 && 'Tiempo máximo: 30 segundos'}
+            {attempt === 1 && 'Tiempo máximo: 15 segundos'}
+            {attempt === 2 && 'Tiempo máximo: 15 segundos'}
+            {attempt === 3 && 'Tiempo máximo: 15 segundos'}
           </Text>
         </View>
       </SafeAreaView>
