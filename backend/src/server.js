@@ -10,12 +10,29 @@ app.use(express.json());
 
 const sheetsService = require('./services/sheetsService');
 
+// Health check endpoint para Koyeb
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'QR Manager Backend',
+    version: '2.0',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()) + ' seconds',
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
+    }
+  });
+});
+
 // Ruta principal
 app.get('/', (req, res) => {
   res.json({
     message: '🏠 QR Manager Backend v2.0',
     status: 'online',
+    platform: 'Koyeb',
     endpoints: [
+      'GET /health - Health check',
       'POST /api/register-code',
       'POST /api/validate-qr',
       'POST /api/register-worker',
