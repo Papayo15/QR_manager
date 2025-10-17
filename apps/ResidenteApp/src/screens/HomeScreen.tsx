@@ -27,8 +27,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
+    wakeUpServer();
     loadUserData();
   }, []);
+
+  const wakeUpServer = async () => {
+    try {
+      await ApiService.healthCheck();
+      console.log('✅ Servidor despierto');
+    } catch (error) {
+      console.log('⚠️ Servidor tardando en despertar');
+    }
+  };
 
   const loadUserData = async () => {
     try {
