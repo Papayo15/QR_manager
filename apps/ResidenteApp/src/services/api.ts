@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://qr-manager-backend-l6dg.onrender.com';
+const API_BASE_URL = 'https://qr-manager-3z8x.onrender.com';
 
 export interface QRCode {
   code: string;

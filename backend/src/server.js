@@ -9,6 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 const sheetsService = require('./services/sheetsService');
+const driveService = require('./services/driveService');
 const { mapAppParamsToBackend, generateQRCode, getCurrentDateTime, getSpreadsheetId } = require('./utils/paramMapper');
 
 // Health check endpoint para UptimeRobot
@@ -38,7 +39,7 @@ app.get('/', (req, res) => {
       'GET /health - Health check (monitored by UptimeRobot)',
       'POST /api/register-code - Acepta { houseNumber, condominio }',
       'POST /api/validate-qr - Acepta { code }',
-      'POST /api/register-worker - Acepta { houseNumber, condominio, workerType, photoBase64 }',
+      'POST /api/register-worker - Acepta { houseNumber, condominio, workerType, photoBase64 } → Sube foto a Drive',
       'GET /api/get-history - Acepta ?houseNumber=X&condominio=Y',
       'GET /api/counters - No requiere parámetros'
     ]
@@ -134,11 +135,22 @@ app.post('/api/register-worker', async (req, res) => {
 
     const { houseNumber, condominio, workerType, photoBase64 } = req.body;
 
+    // Validar que se envió la foto
+    if (!photoBase64) {
+      return res.status(400).json({ success: false, error: 'Se requiere la foto en base64' });
+    }
+
     // Mapear parámetros
     const { sheetId, sheetName, casa } = mapAppParamsToBackend({ houseNumber, condominio });
 
     // Obtener fecha/hora
     const { fecha, hora, mes, año } = getCurrentDateTime();
+
+    // Subir foto a Google Drive
+    console.log('📤 Subiendo foto a Google Drive...');
+    const fileName = driveService.generateFileName(casa, workerType);
+    const photoUrl = await driveService.uploadImage(photoBase64, fileName);
+    console.log(`✅ Foto subida: ${photoUrl}`);
 
     // Preparar datos para el servicio
     const serviceData = {
@@ -147,7 +159,7 @@ app.post('/api/register-worker', async (req, res) => {
       trabajador: `Trabajador ${workerType}`,
       tipo_servicio: workerType,
       casa,
-      foto_url: photoBase64 ? 'base64_image' : '',
+      foto_url: photoUrl, // URL de Drive en lugar de base64
       fecha,
       hora,
       mes,
@@ -160,7 +172,8 @@ app.post('/api/register-worker', async (req, res) => {
       success: true,
       data: {
         message: 'Trabajador registrado exitosamente',
-        sheetName: result.sheetName
+        sheetName: result.sheetName,
+        photoUrl: photoUrl
       }
     });
   } catch (error) {
