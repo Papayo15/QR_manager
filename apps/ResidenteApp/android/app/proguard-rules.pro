@@ -8,3 +8,54 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# React Native
+-keep,allowobfuscation @interface com.facebook.proguard.annotations.DoNotStrip
+-keep,allowobfuscation @interface com.facebook.proguard.annotations.KeepGettersAndSetters
+-keep,allowobfuscation @interface com.facebook.common.internal.DoNotStrip
+-keep,allowobfuscation @interface com.facebook.jni.annotations.DoNotStrip
+
+-keep @com.facebook.proguard.annotations.DoNotStrip class *
+-keep @com.facebook.common.internal.DoNotStrip class *
+-keep @com.facebook.jni.annotations.DoNotStrip class *
+
+-keepclassmembers @com.facebook.proguard.annotations.DoNotStrip class * {
+    *;
+}
+
+-keepclassmembers @com.facebook.common.internal.DoNotStrip class * {
+    *;
+}
+
+-keepclassmembers @com.facebook.jni.annotations.DoNotStrip class * {
+    *;
+}
+
+-keepclassmembers @com.facebook.proguard.annotations.KeepGettersAndSetters class * {
+  void set*(***);
+  *** get*();
+}
+
+-keep class * implements com.facebook.react.bridge.JavaScriptModule { *; }
+-keep class * implements com.facebook.react.bridge.NativeModule { *; }
+-keepclassmembers,includedescriptorclasses class * { native <methods>; }
+-keepclassmembers class *  { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }
+-keepclassmembers class *  { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }
+
+# Hermes
+-keep class com.facebook.jni.** { *; }
+-keep class com.facebook.hermes.unicode.** { *; }
+-keep class com.facebook.hermes.intl.** { *; }
+
+# Navegación
+-keep class com.swmansion.** { *; }
+-keep class com.th3rdwave.** { *; }
+
+# AsyncStorage
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+
+# React Native Share
+-keep class cl.json.** { *; }
+
+# SVG y QR Code
+-keep class com.horcrux.svg.** { *; }

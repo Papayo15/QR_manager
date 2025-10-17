@@ -1,6 +1,6 @@
 {
   "name": "qr-manager-backend",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Backend para sistema de gestión QR",
   "main": "src/server.js",
   "scripts": {

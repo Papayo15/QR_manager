@@ -9,13 +9,14 @@ app.use(cors());
 app.use(express.json());
 
 const sheetsService = require('./services/sheetsService');
+const { mapAppParamsToBackend, generateQRCode, getCurrentDateTime, getSpreadsheetId } = require('./utils/paramMapper');
 
 // Health check endpoint para UptimeRobot
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     service: 'QR Manager Backend',
-    version: '2.0',
+    version: '2.1',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + ' seconds',
     memory: {
@@ -28,17 +29,18 @@ app.get('/health', (req, res) => {
 // Ruta principal
 app.get('/', (req, res) => {
   res.json({
-    message: '🏠 QR Manager Backend v2.0',
+    message: '🏠 QR Manager Backend v2.1',
     status: 'online',
     platform: 'Render.com',
     keepAlive: 'UptimeRobot monitoring /health',
+    improvements: 'Adaptado para comunicación directa con apps móviles',
     endpoints: [
       'GET /health - Health check (monitored by UptimeRobot)',
-      'POST /api/register-code',
-      'POST /api/validate-qr',
-      'POST /api/register-worker',
-      'GET /api/get-history',
-      'GET /api/counters'
+      'POST /api/register-code - Acepta { houseNumber, condominio }',
+      'POST /api/validate-qr - Acepta { code }',
+      'POST /api/register-worker - Acepta { houseNumber, condominio, workerType, photoBase64 }',
+      'GET /api/get-history - Acepta ?houseNumber=X&condominio=Y',
+      'GET /api/counters - No requiere parámetros'
     ]
   });
 });
@@ -46,56 +48,194 @@ app.get('/', (req, res) => {
 // Registrar código QR
 app.post('/api/register-code', async (req, res) => {
   try {
-    const result = await sheetsService.registerCode(req.body);
-    res.json(result);
+    console.log('📥 Solicitud de registro de código:', req.body);
+
+    // Mapear parámetros de la app al formato interno
+    const { sheetId, sheetName, casa, condominio } = mapAppParamsToBackend(req.body);
+
+    // Generar código QR y obtener fecha/hora
+    const codigo = generateQRCode();
+    const { fecha, hora, mes, año } = getCurrentDateTime();
+
+    // Preparar datos para el servicio
+    const serviceData = {
+      sheetId,
+      sheetName,
+      codigo,
+      visitante: req.body.visitante || 'Visitante',
+      residente: req.body.residente || `Casa ${casa}`,
+      casa,
+      fecha,
+      hora,
+      mes,
+      año
+    };
+
+    const result = await sheetsService.registerCode(serviceData);
+
+    // Calcular fecha de expiración (24 horas)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    // Responder con formato esperado por la app
+    res.json({
+      success: true,
+      data: {
+        code: codigo,
+        houseNumber: parseInt(casa, 10),
+        createdAt: new Date().toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        isUsed: false
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error en /api/register-code:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Validar código QR
 app.post('/api/validate-qr', async (req, res) => {
   try {
-    const { sheetId, codigo } = req.body;
-    const result = await sheetsService.validateCode(sheetId, codigo);
-    res.json(result);
+    console.log('📥 Solicitud de validación de código:', req.body);
+
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'Se requiere el código QR' });
+    }
+
+    // Usar SPREADSHEET_ID global
+    const spreadsheetId = getSpreadsheetId();
+
+    const result = await sheetsService.validateCode(spreadsheetId, code);
+
+    // Adaptar respuesta al formato esperado por la app
+    const valid = result.status === 'VALIDADO';
+    res.json({
+      success: true,
+      data: {
+        valid,
+        message: result.message || (valid ? `Acceso permitido: ${result.nombre}` : 'Acceso denegado'),
+        houseNumber: valid ? parseInt(result.casa, 10) : undefined,
+        expiresAt: valid ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : undefined
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error en /api/validate-qr:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Registrar trabajador
 app.post('/api/register-worker', async (req, res) => {
   try {
-    const result = await sheetsService.registerWorker(req.body);
-    res.json(result);
+    console.log('📥 Solicitud de registro de trabajador');
+
+    const { houseNumber, condominio, workerType, photoBase64 } = req.body;
+
+    // Mapear parámetros
+    const { sheetId, sheetName, casa } = mapAppParamsToBackend({ houseNumber, condominio });
+
+    // Obtener fecha/hora
+    const { fecha, hora, mes, año } = getCurrentDateTime();
+
+    // Preparar datos para el servicio
+    const serviceData = {
+      sheetId,
+      sheetName,
+      trabajador: `Trabajador ${workerType}`,
+      tipo_servicio: workerType,
+      casa,
+      foto_url: photoBase64 ? 'base64_image' : '',
+      fecha,
+      hora,
+      mes,
+      año
+    };
+
+    const result = await sheetsService.registerWorker(serviceData);
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Trabajador registrado exitosamente',
+        sheetName: result.sheetName
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error en /api/register-worker:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Obtener historial
 app.get('/api/get-history', async (req, res) => {
   try {
-    const { sheetId, sheetName, casa } = req.query;
-    const history = await sheetsService.getHistory(sheetId, sheetName, casa);
-    res.json(history);
+    console.log('📥 Solicitud de historial:', req.query);
+
+    const { houseNumber, condominio } = req.query;
+
+    if (!houseNumber || !condominio) {
+      return res.status(400).json({ success: false, error: 'Se requieren houseNumber y condominio' });
+    }
+
+    // Mapear parámetros
+    const { sheetId, sheetName, casa } = mapAppParamsToBackend({
+      houseNumber: parseInt(houseNumber, 10),
+      condominio
+    });
+
+    const codes = await sheetsService.getHistory(sheetId, sheetName, casa);
+
+    // Adaptar formato para la app
+    const formattedCodes = codes.map(code => ({
+      code: code.code,
+      houseNumber: parseInt(code.casa, 10),
+      createdAt: new Date().toISOString(), // Placeholder - idealmente debería venir del timestamp
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      isUsed: code.resultado === 'VALIDADO'
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        codes: formattedCodes
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error en /api/get-history:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Obtener contadores
 app.get('/api/counters', async (req, res) => {
   try {
-    const { sheetId } = req.query;
-    const counters = await sheetsService.getCounters(sheetId);
-    res.json(counters);
+    console.log('📥 Solicitud de contadores');
+
+    // Usar SPREADSHEET_ID global
+    const spreadsheetId = getSpreadsheetId();
+
+    const counters = await sheetsService.getCounters(spreadsheetId);
+
+    // Adaptar formato para la app
+    res.json({
+      success: true,
+      data: {
+        generated: counters.generados,
+        validated: counters.validados,
+        denied: counters.negados,
+        date: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error en /api/counters:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`📋 Version 2.1 - Adaptado para apps móviles`);
 });
