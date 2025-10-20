@@ -78,9 +78,14 @@ app.post('/api/register-code', async (req, res) => {
     res.json({
       success: true,
       data: {
-        codigo: codigo,
+        code: codigo,
+        houseNumber: parseInt(casa, 10),
         condominio: condominio,
-        casa: casa,
+        visitante: serviceData.visitante,
+        residente: serviceData.residente,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isUsed: false,
         timestamp: `${fecha} ${hora}`,
         estado: "activo"
       }
