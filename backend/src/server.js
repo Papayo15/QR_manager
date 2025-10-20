@@ -74,19 +74,15 @@ app.post('/api/register-code', async (req, res) => {
 
     const result = await sheetsService.registerCode(serviceData);
 
-    // Calcular fecha de expiración (24 horas)
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
-
     // Responder con formato esperado por la app
     res.json({
       success: true,
       data: {
-        code: codigo,
-        houseNumber: parseInt(casa, 10),
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        isUsed: false
+        codigo: codigo,
+        condominio: condominio,
+        casa: casa,
+        timestamp: `${fecha} ${hora}`,
+        estado: "activo"
       }
     });
   } catch (error) {
@@ -203,18 +199,16 @@ app.get('/api/get-history', async (req, res) => {
 
     // Adaptar formato para la app
     const formattedCodes = codes.map(code => ({
-      code: code.code,
-      houseNumber: parseInt(code.casa, 10),
-      createdAt: new Date().toISOString(), // Placeholder - idealmente debería venir del timestamp
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      isUsed: code.resultado === 'VALIDADO'
+      codigo: code.code || code.codigo,
+      condominio: condominio,
+      casa: casa,
+      timestamp: code.fecha && code.hora ? `${code.fecha} ${code.hora}` : new Date().toLocaleString('es-MX'),
+      estado: code.resultado === 'VALIDADO' ? 'validado' : code.resultado === 'NEGADO' ? 'negado' : 'activo'
     }));
 
     res.json({
       success: true,
-      data: {
-        codes: formattedCodes
-      }
+      data: formattedCodes
     });
   } catch (error) {
     console.error('❌ Error en /api/get-history:', error.message);
@@ -236,10 +230,9 @@ app.get('/api/counters', async (req, res) => {
     res.json({
       success: true,
       data: {
-        generated: counters.generados,
-        validated: counters.validados,
-        denied: counters.negados,
-        date: new Date().toISOString()
+        generados: counters.generados || 0,
+        avalados: counters.validados || 0,
+        negados: counters.negados || 0
       }
     });
   } catch (error) {

@@ -22,20 +22,26 @@ function getSpreadsheetId() {
 
 /**
  * Genera el nombre de la hoja basado en el número de casa y condominio
- * @param {number} houseNumber - Número de casa (1-100)
+ * @param {number|string} houseNumber - Número de casa (1-100) o "administración"
  * @param {string} condominio - Nombre del condominio
- * @returns {string} - Nombre de la hoja (ej: "Registros_Casa_25")
+ * @returns {string} - Nombre de la hoja (ej: "Registros_Casa_25" o "Registros_Administracion")
  */
 function getSheetName(houseNumber, condominio) {
-  // Validar que houseNumber sea un número válido
-  const house = parseInt(houseNumber, 10);
-  if (isNaN(house) || house < 1 || house > 100) {
-    throw new Error(`Número de casa inválido: ${houseNumber}. Debe estar entre 1 y 100.`);
-  }
-
   // Validar que condominio no esté vacío
   if (!condominio || typeof condominio !== 'string') {
     throw new Error('Condominio es requerido y debe ser un string');
+  }
+
+  // Caso especial: administración
+  const houseStr = houseNumber.toString().toLowerCase();
+  if (houseStr === 'administración' || houseStr === 'administracion' || houseStr === 'admin') {
+    return `Registros_Administracion`;
+  }
+
+  // Validar que houseNumber sea un número válido entre 1-100
+  const house = parseInt(houseNumber, 10);
+  if (isNaN(house) || house < 1 || house > 100) {
+    throw new Error(`Número de casa inválido: ${houseNumber}. Debe estar entre 1 y 100, o "administración".`);
   }
 
   // Formato: Registros_Casa_{numero}
