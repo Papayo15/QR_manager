@@ -1,0 +1,255 @@
+# QR Manager - Git Ignore
+
+# ============================================
+# Node.js
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ============================================
+# Backend (Node.js/Express)
+# ============================================
+backend/node_modules/
+backend/.env
+backend/.env.local
+backend/.env.*.local
+backend/dist/
+backend/build/
+backend/logs/
+backend/*.log
+
+# ============================================
+# iOS
+# ============================================
+
+# Xcode
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/*.xcodeproj/xcuserdata/
+ios/**/*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# CocoaPods
+ios/**/Pods/
+ios/**/Podfile.lock
+
+# Build artifacts
+ios/**/build/
+ios/**/DerivedData/
+ios/**/*.hmap
+ios/**/*.ipa
+ios/**/*.dSYM.zip
+ios/**/*.dSYM
+ios/**/*.app
+
+# Swift Package Manager
+ios/**/.swiftpm/
+ios/**/Package.resolved
+ios/**/.build/
+
+# Fastlane
+ios/**/fastlane/report.xml
+ios/**/fastlane/Preview.html
+ios/**/fastlane/screenshots
+ios/**/fastlane/test_output
+
+# Code signing
+ios/**/*.mobileprovision
+ios/**/*.certSigningRequest
+
+# Node modules en apps iOS
+ios/**/node_modules/
+ios/**/package-lock.json
+
+# Archives y exports
+ios/ipa/**/*.ipa
+ios/ipa/**/*.dSYM.zip
+ios/ipa/**/ExportOptions.plist
+ios/ipa/**/DistributionSummary.plist
+ios/ipa/**/Packaging.log
+
+# Mantener estructura de carpetas vacías
+!ios/ipa/ResidenteApp/.gitkeep
+!ios/ipa/VigilanciaApp/.gitkeep
+
+# ============================================
+# Android
+# ============================================
+
+# Gradle
+android/**/.gradle/
+android/**/build/
+android/**/local.properties
+
+# Android Studio
+android/**/.idea/
+android/**/*.iml
+android/**/*.ipr
+android/**/*.iws
+android/**/.DS_Store
+
+# NDK
+android/**/obj/
+android/**/libs/armeabi/
+android/**/libs/armeabi-v7a/
+android/**/libs/arm64-v8a/
+android/**/libs/x86/
+android/**/libs/x86_64/
+
+# Generated files
+android/**/bin/
+android/**/gen/
+android/**/out/
+android/**/release/
+
+# APKs y bundles
+android/**/*.apk
+android/**/*.ap_
+android/**/*.aab
+
+# Signing files
+android/**/*.jks
+android/**/*.keystore
+!android/**/debug.keystore
+
+# Node modules en apps Android
+android/**/node_modules/
+android/**/package-lock.json
+
+# Proguard
+android/**/proguard/
+
+# Log files
+android/**/*.log
+
+# ============================================
+# React Native General
+# ============================================
+
+# Metro bundler
+.metro-health-check*
+
+# Buck
+buck-out/
+.buckconfig.local
+.buckd/
+
+# Watchman
+.watchmanconfig
+
+# Expo
+.expo/
+.expo-shared/
+
+# ============================================
+# macOS
+# ============================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ============================================
+# Environment Variables
+# ============================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ============================================
+# IDE
+# ============================================
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ
+*.iml
+.idea/
+
+# ============================================
+# Testing
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ============================================
+# Temporary files
+# ============================================
+*.swp
+*.swo
+*.tmp
+*.bak
+*.cache
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# Archives
+# ============================================
+*.tar
+*.tar.gz
+*.zip
+
+# ============================================
+# Logs
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# TypeScript
+# ============================================
+*.tsbuildinfo
+.tscache/
+
+# ============================================
+# Optional npm cache directory
+# ============================================
+.npm
+
+# ============================================
+# Optional eslint cache
+# ============================================
+.eslintcache
+
+# ============================================
+# Yarn
+# ============================================
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ============================================
+# Documentación temporal
+# ============================================
+*.draft
+*.notes
+
+# ============================================
+# IMPORTANTE: Mantener archivos específicos
+# ============================================
+
+# Mantener README.md en todas las carpetas
+!**/README.md
+
+# Mantener GUIA_IOS.md
+!ios/ipa/GUIA_IOS.md
+
+# Mantener .gitkeep para carpetas vacías
+!**/.gitkeep
