@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Share from 'react-native-share';
@@ -25,6 +28,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [history, setHistory] = useState<QRCodeType[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [visitante, setVisitante] = useState<string>('');
+  const [residente, setResidente] = useState<string>('');
 
   useEffect(() => {
     wakeUpServer();
@@ -63,23 +68,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setLoadingHistory(false);
 
     if (response.success && response.data) {
-      setHistory(response.data.codes || []);
+      setHistory(response.data || []);
     }
   };
 
   const generateQRCode = async () => {
     if (!houseNumber || !condominio) return;
 
+    // Validar campos obligatorios
+    if (!visitante.trim()) {
+      Alert.alert('Error', 'Por favor ingresa el nombre del visitante');
+      return;
+    }
+
+    if (!residente.trim()) {
+      Alert.alert('Error', 'Por favor ingresa el nombre del residente');
+      return;
+    }
+
     setLoading(true);
     const response = await ApiService.registerCode({
       houseNumber,
-      condominio
+      condominio,
+      visitante: visitante.trim(),
+      residente: residente.trim()
     });
     setLoading(false);
 
     if (response.success && response.data) {
       setCurrentCode(response.data);
       loadHistory(houseNumber, condominio);
+      // Limpiar campos después de generar exitosamente
+      setVisitante('');
+      setResidente('');
       Alert.alert('Éxito', 'Código QR generado correctamente');
     } else {
       Alert.alert('Error', response.error || 'No se pudo generar el código');
@@ -132,16 +153,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Casa {houseNumber}</Text>
-          <Text style={styles.headerSubtitle}>{condominio}</Text>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Casa {houseNumber}</Text>
+            <Text style={styles.headerSubtitle}>{condominio}</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <Text style={styles.logoutText}>Salir</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.qrSection}>
         {currentCode && !isExpired(currentCode.expiresAt) ? (
@@ -152,6 +178,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               backgroundColor="white"
             />
             <Text style={styles.qrCodeText}>{currentCode.code}</Text>
+            {currentCode.visitante && (
+              <Text style={styles.infoText}>
+                Visitante: <Text style={styles.infoBold}>{currentCode.visitante}</Text>
+              </Text>
+            )}
+            {currentCode.residente && (
+              <Text style={styles.infoText}>
+                Residente: <Text style={styles.infoBold}>{currentCode.residente}</Text>
+              </Text>
+            )}
+            <Text style={styles.infoText}>
+              Generado: {formatDate(currentCode.createdAt)}
+            </Text>
             <Text style={styles.expiryText}>
               Expira: {formatDate(currentCode.expiresAt)}
             </Text>
@@ -167,6 +206,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </Text>
           </View>
         )}
+
+        <View style={styles.inputsContainer}>
+          <Text style={styles.inputLabel}>Nombre del Visitante *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Juan Pérez"
+            value={visitante}
+            onChangeText={setVisitante}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.inputLabel}>Nombre del Residente *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: María González"
+            value={residente}
+            onChangeText={setResidente}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+        </View>
 
         <TouchableOpacity
           style={[styles.generateButton, loading && styles.generateButtonDisabled]}
@@ -194,10 +255,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 isExpired(code.expiresAt) && styles.historyItemExpired
               ]}
             >
-              <Text style={styles.historyCode}>{code.code}</Text>
-              <Text style={styles.historyDate}>
-                {formatDate(code.createdAt)}
-              </Text>
+              <View style={styles.historyItemContent}>
+                <Text style={styles.historyCode}>{code.code}</Text>
+                {code.visitante && (
+                  <Text style={styles.historyDetail}>
+                    Visitante: {code.visitante}
+                  </Text>
+                )}
+                {code.residente && (
+                  <Text style={styles.historyDetail}>
+                    Residente: {code.residente}
+                  </Text>
+                )}
+                <Text style={styles.historyDate}>
+                  {formatDate(code.createdAt)}
+                </Text>
+              </View>
               <Text style={[
                 styles.historyStatus,
                 code.isUsed && styles.historyStatusUsed,
@@ -211,7 +284,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={styles.noHistoryText}>No hay historial de códigos</Text>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -219,6 +293,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa'
+  },
+  scrollContainer: {
+    flex: 1
   },
   header: {
     backgroundColor: '#27ae60',
@@ -275,6 +352,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7f8c8d',
     marginTop: 8
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginTop: 8,
+    textAlign: 'center'
+  },
+  infoBold: {
+    fontWeight: 'bold',
+    color: '#27ae60'
+  },
+  inputsContainer: {
+    width: '100%',
+    marginBottom: 20
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+    marginTop: 12
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#dfe6e9'
   },
   noCodeContainer: {
     backgroundColor: '#fff',
@@ -344,12 +450,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2
+  },
+  historyItemContent: {
+    flex: 1,
+    marginRight: 12
   },
   historyItemExpired: {
     opacity: 0.6
@@ -358,26 +468,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2c3e50',
-    flex: 1
+    marginBottom: 4
+  },
+  historyDetail: {
+    fontSize: 12,
+    color: '#555',
+    marginTop: 2
   },
   historyDate: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#7f8c8d',
-    flex: 1,
-    textAlign: 'center'
+    marginTop: 4
   },
   historyStatus: {
     fontSize: 12,
     fontWeight: '600',
     color: '#27ae60',
-    flex: 1,
-    textAlign: 'right'
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#d5f4e6'
   },
   historyStatusUsed: {
-    color: '#3498db'
+    color: '#3498db',
+    backgroundColor: '#d6eaf8'
   },
   historyStatusExpired: {
-    color: '#95a5a6'
+    color: '#95a5a6',
+    backgroundColor: '#ecf0f1'
   },
   noHistoryText: {
     fontSize: 14,

@@ -8,7 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  RefreshControl
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import ApiService, { CountersResponse } from '../services/api';
@@ -96,23 +98,28 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>VigilanciaApp</Text>
-        <Text style={styles.headerSubtitle}>Panel de Control</Text>
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>VigilanciaApp</Text>
+          <Text style={styles.headerSubtitle}>Panel de Control</Text>
 
-        {!serverReady && (
-          <View style={styles.serverStatus}>
-            <ActivityIndicator size="small" color="#fff" />
-            <Text style={styles.serverStatusText}>Conectando...</Text>
-          </View>
-        )}
-      </View>
+          {!serverReady && (
+            <View style={styles.serverStatus}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.serverStatusText}>Conectando...</Text>
+            </View>
+          )}
+        </View>
 
       <View style={styles.countersSection}>
         <Text style={styles.sectionTitle}>Estadísticas del Día</Text>
@@ -143,12 +150,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         <Text style={styles.sectionTitle}>Validar Código QR</Text>
         <TextInput
           style={styles.input}
-          placeholder="Ingresa el código de 6 dígitos"
+          placeholder="Ingresa el código de 6 caracteres"
           value={qrCode}
           onChangeText={setQrCode}
           maxLength={6}
           autoCapitalize="characters"
           autoCorrect={false}
+          keyboardType="default"
         />
         <TouchableOpacity
           style={[styles.validateButton, validating && styles.validateButtonDisabled]}
@@ -178,7 +186,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           Desliza hacia abajo para actualizar
         </Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -186,6 +195,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fef5e7'
+  },
+  scrollContainer: {
+    flex: 1
   },
   header: {
     backgroundColor: '#e74c3c',

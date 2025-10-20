@@ -6,6 +6,8 @@ export interface QRCode {
   createdAt: string;
   expiresAt: string;
   isUsed: boolean;
+  visitante?: string;
+  residente?: string;
 }
 
 export interface ApiResponse<T> {
@@ -17,6 +19,8 @@ export interface ApiResponse<T> {
 export interface RegisterCodeRequest {
   houseNumber: number;
   condominio: string;
+  visitante: string;
+  residente: string;
 }
 
 export interface HistoryResponse {
