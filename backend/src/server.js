@@ -49,10 +49,12 @@ app.get('/', (req, res) => {
 // Registrar código QR
 app.post('/api/register-code', async (req, res) => {
   try {
-    console.log('📥 Solicitud de registro de código:', req.body);
+    console.log('📥 Solicitud de registro de código:', JSON.stringify(req.body));
+    console.log('📥 HouseNumber - Tipo:', typeof req.body.houseNumber, 'Valor:', req.body.houseNumber);
 
     // Mapear parámetros de la app al formato interno
     const { sheetId, sheetName, casa, condominio } = mapAppParamsToBackend(req.body);
+    console.log('📋 Después de mapear - SheetName:', sheetName, 'Casa:', casa, 'SheetId:', sheetId);
 
     // Generar código QR y obtener fecha/hora
     const codigo = generateQRCode();
@@ -72,7 +74,9 @@ app.post('/api/register-code', async (req, res) => {
       año
     };
 
+    console.log('💾 Intentando guardar en Sheets:', JSON.stringify({ sheetId, sheetName, codigo, casa }));
     const result = await sheetsService.registerCode(serviceData);
+    console.log('✅ Guardado exitoso en Sheets:', JSON.stringify(result));
 
     // Responder con formato esperado por la app
     // Mantener casa como string si es "Administración", sino convertir a int
