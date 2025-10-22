@@ -109,7 +109,7 @@ app.post('/api/validate-qr', async (req, res) => {
     const { code } = req.body;
 
     if (!code) {
-      return res.status(400).json({ success: false, error: 'Se requiere el código QR' });
+      return res.status(400).json({ success: false, message: 'Se requiere el código QR' });
     }
 
     // Usar SPREADSHEET_ID global
@@ -117,20 +117,25 @@ app.post('/api/validate-qr', async (req, res) => {
 
     const result = await sheetsService.validateCode(spreadsheetId, code);
 
-    // Adaptar respuesta al formato esperado por la app
-    const valid = result.status === 'VALIDADO';
+    // Adaptar respuesta al formato esperado por VigilanciaApp
+    const isValid = result.status === 'VALIDADO';
+    const estado = isValid ? 'valido' : (result.status === 'DENEGADO' && result.message === 'Código expirado' ? 'expirado' : 'invalido');
+    const message = result.message || (isValid ? `Acceso permitido` : 'Acceso denegado');
+
     res.json({
       success: true,
+      message: message,
       data: {
-        valid,
-        message: result.message || (valid ? `Acceso permitido: ${result.nombre}` : 'Acceso denegado'),
-        houseNumber: valid ? parseInt(result.casa, 10) : undefined,
-        expiresAt: valid ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : undefined
+        estado: estado,
+        codigo: code.toUpperCase(),
+        condominio: 'Unica',  // Este valor podría extraerse del sheetName si es necesario
+        casa: result.casa || null,
+        timestamp: new Date().toISOString()
       }
     });
   } catch (error) {
     console.error('❌ Error en /api/validate-qr:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

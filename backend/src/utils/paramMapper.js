@@ -21,10 +21,10 @@ function getSpreadsheetId() {
 }
 
 /**
- * Genera el nombre de la hoja basado en el número de casa y condominio
- * @param {number|string} houseNumber - Número de casa (1-100) o "administración"
+ * Genera el nombre de la hoja basado en el condominio
+ * @param {number|string} houseNumber - Número de casa (1-100) o "administración" (para validación)
  * @param {string} condominio - Nombre del condominio
- * @returns {string} - Nombre de la hoja (ej: "Registros_Casa_25" o "Registros_Administracion")
+ * @returns {string} - Nombre de la hoja (ej: "Registros_Unica")
  */
 function getSheetName(houseNumber, condominio) {
   // Validar que condominio no esté vacío
@@ -32,20 +32,21 @@ function getSheetName(houseNumber, condominio) {
     throw new Error('Condominio es requerido y debe ser un string');
   }
 
-  // Caso especial: administración
+  // Validar houseNumber
   const houseStr = houseNumber.toString().toLowerCase();
-  if (houseStr === 'administración' || houseStr === 'administracion' || houseStr === 'admin') {
-    return `Registros_Administracion`;
+  const isAdmin = (houseStr === 'administración' || houseStr === 'administracion' || houseStr === 'admin');
+
+  if (!isAdmin) {
+    const house = parseInt(houseNumber, 10);
+    if (isNaN(house) || house < 1 || house > 100) {
+      throw new Error(`Número de casa inválido: ${houseNumber}. Debe estar entre 1 y 100, o "administración".`);
+    }
   }
 
-  // Validar que houseNumber sea un número válido entre 1-100
-  const house = parseInt(houseNumber, 10);
-  if (isNaN(house) || house < 1 || house > 100) {
-    throw new Error(`Número de casa inválido: ${houseNumber}. Debe estar entre 1 y 100, o "administración".`);
-  }
-
-  // Formato: Registros_Casa_{numero}
-  return `Registros_Casa_${house}`;
+  // Formato: Registros_{Condominio}
+  // Normalizar nombre del condominio (capitalizar primera letra)
+  const condominioNormalizado = condominio.charAt(0).toUpperCase() + condominio.slice(1).toLowerCase();
+  return `Registros_${condominioNormalizado}`;
 }
 
 /**

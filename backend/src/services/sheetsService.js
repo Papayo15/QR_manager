@@ -107,7 +107,8 @@ class SheetsService {
 
       for (const sheet of spreadsheet.data.sheets) {
         const sheetName = sheet.properties.title;
-        if (!sheetName.startsWith('Registros_Casa_')) continue;
+        // Buscar en todas las hojas de registros por condominio
+        if (!sheetName.startsWith('Registros_')) continue;
 
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
@@ -215,7 +216,8 @@ class SheetsService {
 
       for (const sheet of spreadsheet.data.sheets) {
         const sheetName = sheet.properties.title;
-        if (!sheetName.startsWith('Registros_Casa_')) continue;
+        // Buscar en todas las hojas de registros por condominio
+        if (!sheetName.startsWith('Registros_')) continue;
 
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
