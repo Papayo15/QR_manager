@@ -135,7 +135,11 @@ app.post('/api/validate-qr', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error en /api/validate-qr:', error.message);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error al validar código',
+      data: null
+    });
   }
 });
 
