@@ -75,11 +75,16 @@ app.post('/api/register-code', async (req, res) => {
     const result = await sheetsService.registerCode(serviceData);
 
     // Responder con formato esperado por la app
+    // Mantener casa como string si es "Administración", sino convertir a int
+    const houseNumberResponse = isNaN(parseInt(casa, 10)) ? casa : parseInt(casa, 10);
+
     res.json({
       success: true,
       data: {
+        codigo: codigo,
         code: codigo,
-        houseNumber: parseInt(casa, 10),
+        casa: casa,
+        houseNumber: houseNumberResponse,
         condominio: condominio,
         visitante: serviceData.visitante,
         residente: serviceData.residente,
@@ -194,9 +199,9 @@ app.get('/api/get-history', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Se requieren houseNumber y condominio' });
     }
 
-    // Mapear parámetros
+    // Mapear parámetros (mantener como string si es "Administración")
     const { sheetId, sheetName, casa } = mapAppParamsToBackend({
-      houseNumber: parseInt(houseNumber, 10),
+      houseNumber: houseNumber,
       condominio
     });
 

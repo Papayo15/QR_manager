@@ -97,28 +97,35 @@ function generateQRCode() {
 }
 
 /**
- * Obtiene la fecha y hora actual en formato local
- * @returns {Object} - Objeto con fecha, hora, mes, y año
+ * Obtiene la fecha y hora actual en formato local de México
+ * @returns {Object} - Objeto con fecha, hora, mes, y año en zona horaria de México
  */
 function getCurrentDateTime() {
+  // Obtener fecha/hora UTC y convertir a México (UTC-6)
   const now = new Date();
+  const utcTime = now.getTime();
+  const mexicoOffset = -6 * 60 * 60 * 1000; // -6 horas en milisegundos
+  const mexicoTime = new Date(utcTime + mexicoOffset);
+
+  // Extraer componentes de fecha
+  const dia = mexicoTime.getUTCDate().toString().padStart(2, '0');
+  const mesNum = (mexicoTime.getUTCMonth() + 1).toString().padStart(2, '0');
+  const año = mexicoTime.getUTCFullYear().toString();
 
   // Formato: DD/MM/YYYY
-  const fecha = now.toLocaleDateString('es-MX', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
+  const fecha = `${dia}/${mesNum}/${año}`;
 
-  // Formato: HH:MM
-  const hora = now.toLocaleTimeString('es-MX', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
+  // Extraer componentes de hora
+  const horas = mexicoTime.getUTCHours().toString().padStart(2, '0');
+  const minutos = mexicoTime.getUTCMinutes().toString().padStart(2, '0');
 
-  const mes = now.toLocaleDateString('es-MX', { month: 'long' });
-  const año = now.getFullYear().toString();
+  // Formato: HH:MM (24 horas)
+  const hora = `${horas}:${minutos}`;
+
+  // Obtener nombre del mes en español
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const mes = meses[mexicoTime.getUTCMonth()];
 
   return { fecha, hora, mes, año };
 }
