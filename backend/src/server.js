@@ -153,11 +153,14 @@ app.post('/api/register-worker', async (req, res) => {
   try {
     console.log('📥 Solicitud de registro de trabajador');
 
-    const { houseNumber, condominio, workerType, photoBase64 } = req.body;
+    const { houseNumber, condominio, workerName, workerType, photoBase64 } = req.body;
 
-    // Validar que se envió la foto
+    // Validar que se envió la foto y el nombre
     if (!photoBase64) {
       return res.status(400).json({ success: false, error: 'Se requiere la foto en base64' });
+    }
+    if (!workerName) {
+      return res.status(400).json({ success: false, error: 'Se requiere el nombre del trabajador' });
     }
 
     // Mapear parámetros
@@ -168,7 +171,14 @@ app.post('/api/register-worker', async (req, res) => {
 
     // Subir foto a Google Drive con OAuth
     console.log('📤 Subiendo foto a Google Drive (OAuth)...');
-    const fileName = driveService.generateFileName(casa, workerType);
+    const fileName = driveService.generateFileName({
+      condominio,
+      nombreTrabajador: workerName,
+      tipoTrabajador: workerType,
+      casa,
+      fecha,
+      hora
+    });
     const photoUrl = await driveService.uploadImage(photoBase64, fileName);
     console.log(`✅ Foto subida exitosamente a Drive: ${photoUrl}`);
 
@@ -176,7 +186,7 @@ app.post('/api/register-worker', async (req, res) => {
     const serviceData = {
       sheetId,
       sheetName,
-      trabajador: `Trabajador ${workerType}`,
+      trabajador: workerName,
       tipo_servicio: workerType,
       casa,
       foto_url: photoUrl, // URL de Google Drive

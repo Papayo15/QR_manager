@@ -73,15 +73,29 @@ class DriveService {
   }
 
   /**
-   * Genera un nombre de archivo único para una foto de INE
-   * @param {string} casa - Número de casa
-   * @param {string} workerType - Tipo de trabajador
+   * Genera un nombre de archivo único para una foto de trabajador
+   * @param {Object} params - Parámetros del trabajador
+   * @param {string} params.condominio - Nombre del condominio
+   * @param {string} params.nombreTrabajador - Nombre del trabajador
+   * @param {string} params.tipoTrabajador - Tipo de trabajador
+   * @param {string} params.casa - Número de casa
+   * @param {string} params.fecha - Fecha en formato DD/MM/YYYY
+   * @param {string} params.hora - Hora en formato HH:MM:SS
    * @returns {string} - Nombre del archivo
    */
-  generateFileName(casa, workerType) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const sanitizedType = workerType.replace(/\s+/g, '_');
-    return `INE_Casa_${casa}_${sanitizedType}_${timestamp}_${Date.now()}.jpg`;
+  generateFileName({ condominio, nombreTrabajador, tipoTrabajador, casa, fecha, hora }) {
+    // Sanitizar cada campo (remover espacios y caracteres especiales)
+    const sanitizeField = (field) => field.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const condominioClean = sanitizeField(condominio);
+    const nombreClean = sanitizeField(nombreTrabajador);
+    const tipoClean = sanitizeField(tipoTrabajador);
+    const casaClean = sanitizeField(casa.toString());
+    const fechaClean = sanitizeField(fecha);
+    const horaClean = sanitizeField(hora);
+
+    // Formato: Condominio_NombreTrabajador_Tipo_Casa_Fecha_Hora.jpg
+    return `${condominioClean}_${nombreClean}_${tipoClean}_Casa${casaClean}_${fechaClean}_${horaClean}.jpg`;
   }
 
   /**
