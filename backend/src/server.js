@@ -10,7 +10,6 @@ app.use(express.json({ limit: '10mb' })); // Permitir fotos en base64
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const sheetsService = require('./services/sheetsService');
-const driveService = require('./services/driveService');
 const { mapAppParamsToBackend, generateQRCode, getCurrentDateTime, getSpreadsheetId } = require('./utils/paramMapper');
 
 // Health check endpoint para UptimeRobot
@@ -166,11 +165,10 @@ app.post('/api/register-worker', async (req, res) => {
     // Obtener fecha/hora
     const { fecha, hora, mes, año } = getCurrentDateTime();
 
-    // Subir foto a Google Drive
-    console.log('📤 Subiendo foto a Google Drive...');
-    const fileName = driveService.generateFileName(casa, workerType);
-    const photoUrl = await driveService.uploadImage(photoBase64, fileName);
-    console.log(`✅ Foto subida: ${photoUrl}`);
+    // Crear un enlace público de Google Drive usando el ID de la carpeta
+    console.log('💾 Creando enlace de foto para visualización...');
+    const photoDataUrl = `=IMAGE("data:image/jpeg;base64,${photoBase64}")`;
+    console.log(`✅ Foto preparada para Google Sheets`);
 
     // Preparar datos para el servicio
     const serviceData = {
@@ -179,7 +177,7 @@ app.post('/api/register-worker', async (req, res) => {
       trabajador: `Trabajador ${workerType}`,
       tipo_servicio: workerType,
       casa,
-      foto_url: photoUrl, // URL de Drive en lugar de base64
+      foto_url: photoDataUrl, // Fórmula IMAGE de Sheets
       fecha,
       hora,
       mes,
@@ -193,7 +191,7 @@ app.post('/api/register-worker', async (req, res) => {
       data: {
         message: 'Trabajador registrado exitosamente',
         sheetName: result.sheetName,
-        photoUrl: photoUrl
+        photoUrl: 'Foto guardada en Sheets'
       }
     });
   } catch (error) {
