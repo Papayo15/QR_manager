@@ -8,24 +8,87 @@ const { getOAuthClient } = require('../config/googleConfig');
  */
 class DriveService {
   /**
+   * Busca o crea una carpeta por nombre de condominio
+   * @param {string} condominioName - Nombre del condominio
+   * @returns {Promise<string>} - ID de la carpeta del condominio
+   */
+  async getOrCreateCondominioFolder(condominioName) {
+    try {
+      const auth = getOAuthClient();
+      const drive = google.drive({ version: 'v3', auth });
+
+      // Carpeta raíz de fotos_trabajadores
+      const rootFolderId = process.env.DRIVE_FOLDER_ID;
+      if (!rootFolderId) {
+        throw new Error('DRIVE_FOLDER_ID no está configurado en las variables de entorno');
+      }
+
+      // Buscar si ya existe la carpeta del condominio
+      const sanitizedName = condominioName.trim();
+      console.log(`🔍 Buscando carpeta para condominio: ${sanitizedName}`);
+
+      const searchResponse = await drive.files.list({
+        q: `name='${sanitizedName}' and mimeType='application/vnd.google-apps.folder' and '${rootFolderId}' in parents and trashed=false`,
+        fields: 'files(id, name)',
+        spaces: 'drive'
+      });
+
+      if (searchResponse.data.files.length > 0) {
+        // La carpeta ya existe
+        const folderId = searchResponse.data.files[0].id;
+        console.log(`✅ Carpeta existente encontrada: ${sanitizedName} (ID: ${folderId})`);
+        return folderId;
+      }
+
+      // Crear nueva carpeta si no existe
+      console.log(`📁 Creando nueva carpeta para condominio: ${sanitizedName}`);
+      const folderMetadata = {
+        name: sanitizedName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [rootFolderId]
+      };
+
+      const folder = await drive.files.create({
+        requestBody: folderMetadata,
+        fields: 'id, name'
+      });
+
+      console.log(`✅ Carpeta creada: ${folder.data.name} (ID: ${folder.data.id})`);
+      return folder.data.id;
+
+    } catch (error) {
+      console.error(`❌ Error al buscar/crear carpeta de condominio:`, error.message);
+      throw new Error(`No se pudo crear la carpeta del condominio: ${error.message}`);
+    }
+  }
+
+  /**
    * Sube una imagen en base64 a Google Drive
    * @param {string} base64Image - Imagen en formato base64
    * @param {string} fileName - Nombre del archivo (ej: "INE_Casa_25_20241016.jpg")
+   * @param {string} condominioName - Nombre del condominio (opcional, si no se provee usa carpeta raíz)
    * @returns {Promise<string>} - URL pública de la imagen en Drive
    */
-  async uploadImage(base64Image, fileName) {
+  async uploadImage(base64Image, fileName, condominioName = null) {
     try {
       console.log(`📤 Subiendo imagen a Drive: ${fileName}`);
-
-      // Validar que existe DRIVE_FOLDER_ID
-      const folderId = process.env.DRIVE_FOLDER_ID;
-      if (!folderId) {
-        throw new Error('DRIVE_FOLDER_ID no está configurado en las variables de entorno');
-      }
 
       // Obtener cliente OAuth autenticado
       const auth = getOAuthClient();
       const drive = google.drive({ version: 'v3', auth });
+
+      // Determinar carpeta destino
+      let targetFolderId;
+      if (condominioName) {
+        // Buscar o crear carpeta del condominio
+        targetFolderId = await this.getOrCreateCondominioFolder(condominioName);
+      } else {
+        // Usar carpeta raíz si no se especifica condominio
+        targetFolderId = process.env.DRIVE_FOLDER_ID;
+        if (!targetFolderId) {
+          throw new Error('DRIVE_FOLDER_ID no está configurado en las variables de entorno');
+        }
+      }
 
       // Convertir base64 a buffer
       const imageBuffer = Buffer.from(base64Image, 'base64');
@@ -33,7 +96,7 @@ class DriveService {
       // Metadata del archivo
       const fileMetadata = {
         name: fileName,
-        parents: [folderId] // Carpeta donde se guardará
+        parents: [targetFolderId] // Carpeta donde se guardará
       };
 
       // Media del archivo

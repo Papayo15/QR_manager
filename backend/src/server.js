@@ -169,7 +169,7 @@ app.post('/api/register-worker', async (req, res) => {
     // Obtener fecha/hora
     const { fecha, hora, mes, año } = getCurrentDateTime();
 
-    // Subir foto a Google Drive con OAuth
+    // Subir foto a Google Drive con OAuth (organizado por carpetas de condominio)
     console.log('📤 Subiendo foto a Google Drive (OAuth)...');
     const fileName = driveService.generateFileName({
       condominio,
@@ -179,7 +179,7 @@ app.post('/api/register-worker', async (req, res) => {
       fecha,
       hora
     });
-    const photoUrl = await driveService.uploadImage(photoBase64, fileName);
+    const photoUrl = await driveService.uploadImage(photoBase64, fileName, condominio);
     console.log(`✅ Foto subida exitosamente a Drive: ${photoUrl}`);
 
     // Preparar datos para el servicio
