@@ -6,7 +6,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Permitir fotos en base64
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const sheetsService = require('./services/sheetsService');
 const driveService = require('./services/driveService');
