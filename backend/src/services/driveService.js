@@ -1,9 +1,10 @@
 const { google } = require('googleapis');
-const { getAuthClient } = require('../config/googleConfig');
+const { getOAuthClient } = require('../config/googleConfig');
 
 /**
  * Servicio para manejar operaciones de Google Drive
  * Usado para subir fotos de identificaciones (INE) de trabajadores
+ * Usa OAuth 2.0 para subir a la cuenta de Google Drive del usuario autorizado
  */
 class DriveService {
   /**
@@ -22,8 +23,8 @@ class DriveService {
         throw new Error('DRIVE_FOLDER_ID no está configurado en las variables de entorno');
       }
 
-      // Obtener cliente autenticado
-      const auth = await getAuthClient();
+      // Obtener cliente OAuth autenticado
+      const auth = getOAuthClient();
       const drive = google.drive({ version: 'v3', auth });
 
       // Convertir base64 a buffer
@@ -91,7 +92,7 @@ class DriveService {
     try {
       console.log(`🗑️  Eliminando imagen de Drive: ${fileId}`);
 
-      const auth = await getAuthClient();
+      const auth = getOAuthClient();
       const drive = google.drive({ version: 'v3', auth });
 
       await drive.files.delete({
@@ -118,7 +119,7 @@ class DriveService {
         throw new Error('DRIVE_FOLDER_ID no está configurado');
       }
 
-      const auth = await getAuthClient();
+      const auth = getOAuthClient();
       const drive = google.drive({ version: 'v3', auth });
 
       const response = await drive.files.list({
