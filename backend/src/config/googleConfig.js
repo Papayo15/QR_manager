@@ -22,4 +22,4 @@ async function getDriveClient() {
   return google.drive({ version: 'v3', auth });
 }
 
-module.exports = { getSheetsClient, getDriveClient };
+module.exports = { getAuthClient, getSheetsClient, getDriveClient };
