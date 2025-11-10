@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ResidenteApp.ipa</key>
+	<array>
+		<dict>
+			<key>architectures</key>
+			<array>
+				<string>arm64</string>
+			</array>
+			<key>buildNumber</key>
+			<string>8</string>
+			<key>certificate</key>
+			<dict>
+				<key>SHA1</key>
+				<string>2284CCBE067BA89F7A3F14B93CA1947802141BE9</string>
+				<key>dateExpires</key>
+				<string>28/10/26</string>
+				<key>type</key>
+				<string>Cloud Managed Apple Distribution</string>
+			</dict>
+			<key>embeddedBinaries</key>
+			<array>
+				<dict>
+					<key>architectures</key>
+					<array>
+						<string>arm64</string>
+					</array>
+					<key>buildNumber</key>
+					<string>1</string>
+					<key>certificate</key>
+					<dict>
+						<key>SHA1</key>
+						<string>2284CCBE067BA89F7A3F14B93CA1947802141BE9</string>
+						<key>dateExpires</key>
+						<string>28/10/26</string>
+						<key>type</key>
+						<string>Cloud Managed Apple Distribution</string>
+					</dict>
+					<key>name</key>
+					<string>React.framework</string>
+					<key>symbols</key>
+					<true/>
+					<key>team</key>
+					<dict>
+						<key>id</key>
+						<string>M4642CU42L</string>
+						<key>name</key>
+						<string>Juan Pablo Cevallos</string>
+					</dict>
+					<key>versionNumber</key>
+					<string>1.0</string>
+				</dict>
+				<dict>
+					<key>architectures</key>
+					<array>
+						<string>arm64</string>
+					</array>
+					<key>buildNumber</key>
+					<string>1</string>
+					<key>certificate</key>
+					<dict>
+						<key>SHA1</key>
+						<string>2284CCBE067BA89F7A3F14B93CA1947802141BE9</string>
+						<key>dateExpires</key>
+						<string>28/10/26</string>
+						<key>type</key>
+						<string>Cloud Managed Apple Distribution</string>
+					</dict>
+					<key>name</key>
+					<string>ReactNativeDependencies.framework</string>
+					<key>symbols</key>
+					<true/>
+					<key>team</key>
+					<dict>
+						<key>id</key>
+						<string>M4642CU42L</string>
+						<key>name</key>
+						<string>Juan Pablo Cevallos</string>
+					</dict>
+					<key>versionNumber</key>
+					<string>1.0</string>
+				</dict>
+				<dict>
+					<key>architectures</key>
+					<array>
+						<string>arm64</string>
+					</array>
+					<key>buildNumber</key>
+					<string>0.12.0</string>
+					<key>certificate</key>
+					<dict>
+						<key>SHA1</key>
+						<string>2284CCBE067BA89F7A3F14B93CA1947802141BE9</string>
+						<key>dateExpires</key>
+						<string>28/10/26</string>
+						<key>type</key>
+						<string>Cloud Managed Apple Distribution</string>
+					</dict>
+					<key>name</key>
+					<string>hermes.framework</string>
+					<key>symbols</key>
+					<true/>
+					<key>team</key>
+					<dict>
+						<key>id</key>
+						<string>M4642CU42L</string>
+						<key>name</key>
+						<string>Juan Pablo Cevallos</string>
+					</dict>
+					<key>versionNumber</key>
+					<string>0.12.0</string>
+				</dict>
+			</array>
+			<key>entitlements</key>
+			<dict>
+				<key>application-identifier</key>
+				<string>M4642CU42L.com.qr.residentes</string>
+				<key>beta-reports-active</key>
+				<true/>
+				<key>com.apple.developer.team-identifier</key>
+				<string>M4642CU42L</string>
+				<key>get-task-allow</key>
+				<false/>
+			</dict>
+			<key>name</key>
+			<string>ResidenteApp.app</string>
+			<key>profile</key>
+			<dict>
+				<key>UUID</key>
+				<string>5dfa9581-65b9-4095-a432-a043eb9abd92</string>
+				<key>dateExpires</key>
+				<string>28/10/26</string>
+				<key>name</key>
+				<string>iOS Team Store Provisioning Profile: com.qr.residentes</string>
+			</dict>
+			<key>symbols</key>
+			<true/>
+			<key>team</key>
+			<dict>
+				<key>id</key>
+				<string>M4642CU42L</string>
+				<key>name</key>
+				<string>Juan Pablo Cevallos</string>
+			</dict>
+			<key>versionNumber</key>
+			<string>1.0.5</string>
+		</dict>
+	</array>
+</dict>
+</plist>
