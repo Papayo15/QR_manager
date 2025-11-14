@@ -131,14 +131,6 @@ async function uploadPhotoToDrive(photoBase64, fileName, condominio, mimeType = 
   }
 
   try {
-    // Obtener o crear carpeta del condominio
-    const condominioFolderId = await getOrCreateCondominioFolder(condominio);
-
-    if (!condominioFolderId) {
-      console.error('❌ No se pudo obtener carpeta del condominio');
-      return null;
-    }
-
     // Convertir base64 a buffer
     const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
@@ -146,9 +138,11 @@ async function uploadPhotoToDrive(photoBase64, fileName, condominio, mimeType = 
     // Crear stream del buffer
     const stream = Readable.from(buffer);
 
+    // Subir directo a la carpeta principal (que fue compartida con el Service Account)
+    // Evita problema de "Service Accounts do not have storage quota"
     const fileMetadata = {
-      name: fileName,
-      parents: [condominioFolderId] // Usar carpeta del condominio
+      name: `${condominio}_${fileName}`, // Incluir condominio en el nombre del archivo
+      parents: [DRIVE_FOLDER_ID]
     };
 
     const media = {
@@ -174,7 +168,7 @@ async function uploadPhotoToDrive(photoBase64, fileName, condominio, mimeType = 
     // Obtener URL directa de visualización
     const directUrl = `https://drive.google.com/uc?export=view&id=${file.data.id}`;
 
-    console.log(`📤 Foto subida a Drive: ${file.data.id} (${condominio}/${fileName})`);
+    console.log(`📤 Foto subida a Drive: ${file.data.id} (${condominio}_${fileName})`);
     console.log(`🔓 Foto pública: ${directUrl}`);
 
     return {
