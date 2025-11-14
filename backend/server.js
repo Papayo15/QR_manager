@@ -115,8 +115,26 @@ async function getOrCreateCondominioFolder(condominioName) {
       fields: 'id'
     });
 
-    console.log(`✨ Nueva carpeta creada: ${condominioName} (${folder.data.id})`);
-    return folder.data.id;
+    const folderId = folder.data.id;
+    console.log(`✨ Nueva carpeta creada: ${condominioName} (${folderId})`);
+
+    // CRITICAL FIX: Hacer la carpeta pública (writable) para evitar error de storage quota
+    // Cuando el Service Account crea la carpeta, necesita permisos especiales para subir archivos
+    try {
+      await driveService.permissions.create({
+        fileId: folderId,
+        requestBody: {
+          role: 'writer',
+          type: 'anyone'
+        },
+        fields: 'id'
+      });
+      console.log(`🔓 Carpeta ${condominioName} configurada con permisos de escritura`);
+    } catch (permError) {
+      console.warn(`⚠️ No se pudieron establecer permisos en la carpeta: ${permError.message}`);
+    }
+
+    return folderId;
   } catch (error) {
     console.error('❌ Error creando/buscando carpeta:', error.message);
     return null;
@@ -138,11 +156,20 @@ async function uploadPhotoToDrive(photoBase64, fileName, condominio, mimeType = 
     // Crear stream del buffer
     const stream = Readable.from(buffer);
 
-    // Subir directo a la carpeta principal (que fue compartida con el Service Account)
-    // Evita problema de "Service Accounts do not have storage quota"
+    // Obtener o crear la carpeta del condominio
+    const condominioFolderId = await getOrCreateCondominioFolder(condominio);
+
+    // Si no se pudo obtener/crear la carpeta, subir a la carpeta principal como fallback
+    const targetFolderId = condominioFolderId || DRIVE_FOLDER_ID;
+    const finalFileName = condominioFolderId ? fileName : `${condominio}_${fileName}`;
+
+    if (!condominioFolderId) {
+      console.warn(`⚠️ No se pudo crear carpeta para ${condominio}, subiendo a carpeta principal`);
+    }
+
     const fileMetadata = {
-      name: `${condominio}_${fileName}`, // Incluir condominio en el nombre del archivo
-      parents: [DRIVE_FOLDER_ID]
+      name: finalFileName,
+      parents: [targetFolderId]
     };
 
     const media = {
@@ -168,7 +195,8 @@ async function uploadPhotoToDrive(photoBase64, fileName, condominio, mimeType = 
     // Obtener URL directa de visualización
     const directUrl = `https://drive.google.com/uc?export=view&id=${file.data.id}`;
 
-    console.log(`📤 Foto subida a Drive: ${file.data.id} (${condominio}_${fileName})`);
+    const folderInfo = condominioFolderId ? `en carpeta ${condominio}` : 'en carpeta principal';
+    console.log(`📤 Foto subida a Drive: ${file.data.id} (${finalFileName}) ${folderInfo}`);
     console.log(`🔓 Foto pública: ${directUrl}`);
 
     return {
