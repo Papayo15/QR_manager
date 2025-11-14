@@ -1148,6 +1148,50 @@ app.get('/api/get-ines', async (req, res) => {
 });
 
 // ============================================
+// ENDPOINT: Reset Sistema (Admin)
+// ============================================
+
+app.post('/api/admin/reset-all', async (req, res) => {
+  try {
+    console.log('⚠️ Iniciando reset completo del sistema...');
+
+    if (!db) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no conectada'
+      });
+    }
+
+    // Borrar todas las colecciones
+    const collections = ['qrCodes', 'ines', 'workers', 'pushTokens'];
+    const results = {};
+
+    for (const collectionName of collections) {
+      const result = await db.collection(collectionName).deleteMany({});
+      results[collectionName] = result.deletedCount;
+      console.log(`🗑️ ${collectionName}: ${result.deletedCount} documentos eliminados`);
+    }
+
+    console.log('✅ Reset completo del sistema exitoso');
+
+    res.json({
+      success: true,
+      message: 'Sistema reseteado exitosamente',
+      deleted: results,
+      note: 'Google Drive y Sheets deben limpiarse manualmente si es necesario'
+    });
+
+  } catch (error) {
+    console.error('❌ Error en reset del sistema:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
 // FUNCIÓN: Keep-Alive Auto-Ping
 // ============================================
 
