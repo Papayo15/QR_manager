@@ -29,13 +29,17 @@ let db;
 let mongoClient;
 
 // ============================================
-// CONFIGURACIÓN DE GOOGLE DRIVE
+// CONFIGURACIÓN DE GOOGLE DRIVE Y SHEETS
 // ============================================
 
 const DRIVE_FOLDER_ID = '19odj_9kYCT40qb9f_YSCOCpIt5jIWPCe';
-let driveService;
+const SPREADSHEET_ID = '1h_fEz5tDjNmdZ-57F2CoL5W6RjjAF7Yhw4ttJgypb7o';
+const SHEET_NAME = 'QR Codes'; // Nombre de la pestaña donde se guardarán los QR
 
-async function initializeGoogleDrive() {
+let driveService;
+let sheetsService;
+
+async function initializeGoogleServices() {
   try {
     let credentials;
 
@@ -49,20 +53,29 @@ async function initializeGoogleDrive() {
         credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
         console.log('🔐 Credenciales cargadas desde variable de entorno');
       } else {
-        throw new Error('No se encontraron credenciales de Google Drive');
+        throw new Error('No se encontraron credenciales de Google');
       }
     }
 
     const auth = new google.auth.GoogleAuth({
       credentials: credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/spreadsheets'
+      ],
     });
 
+    // Inicializar Drive
     driveService = google.drive({ version: 'v3', auth });
     console.log('✅ Google Drive inicializado');
-    return driveService;
+
+    // Inicializar Sheets
+    sheetsService = google.sheets({ version: 'v4', auth });
+    console.log('✅ Google Sheets inicializado');
+
+    return { driveService, sheetsService };
   } catch (error) {
-    console.error('❌ Error inicializando Google Drive:', error.message);
+    console.error('❌ Error inicializando servicios de Google:', error.message);
     return null;
   }
 }
@@ -122,6 +135,44 @@ async function uploadPhotoToDrive(photoBase64, fileName, mimeType = 'image/jpeg'
   } catch (error) {
     console.error('❌ Error subiendo foto a Drive:', error.message);
     return null;
+  }
+}
+
+// Función para guardar QR code en Google Sheets
+async function saveQRToSheet(qrData) {
+  if (!sheetsService) {
+    console.warn('⚠️ Google Sheets no está inicializado');
+    return false;
+  }
+
+  try {
+    const row = [
+      qrData.code || '',
+      qrData.houseNumber || qrData.casa || '',
+      qrData.condominio || '',
+      qrData.visitante || '',
+      qrData.residente || '',
+      qrData.createdAt || new Date().toISOString(),
+      qrData.expiresAt || '',
+      qrData.estado || 'activo',
+      qrData.isUsed ? 'Sí' : 'No',
+      qrData.usedAt || ''
+    ];
+
+    await sheetsService.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A:J`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [row]
+      }
+    });
+
+    console.log(`📊 QR guardado en Sheet: ${qrData.code}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error guardando en Sheet:', error.message);
+    return false;
   }
 }
 
@@ -345,6 +396,9 @@ app.post('/api/register-code', async (req, res) => {
     if (db) {
       await db.collection('qrCodes').insertOne(qrData);
     }
+
+    // Guardar en Google Sheets
+    await saveQRToSheet(qrData);
 
     console.log(`✅ Código QR generado para casa ${houseNumber}`);
 
@@ -973,8 +1027,8 @@ async function startServer() {
     // Conectar a base de datos
     await connectToDatabase();
 
-    // Inicializar Google Drive
-    await initializeGoogleDrive();
+    // Inicializar Google Drive y Sheets
+    await initializeGoogleServices();
 
     // Iniciar servidor
     app.listen(PORT, () => {
