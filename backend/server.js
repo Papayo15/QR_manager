@@ -248,6 +248,27 @@ async function getOrCreateCondominioSheet(condominioName) {
   }
 }
 
+// Función para convertir fecha UTC a hora local de México
+function formatDateForMexico(dateString) {
+  if (!dateString) return '';
+
+  const date = new Date(dateString);
+
+  // Convertir a hora de México (CST/CDT - America/Mexico_City)
+  const mexicoTime = date.toLocaleString('es-MX', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  return mexicoTime;
+}
+
 // Función para guardar QR code en Google Sheets
 async function saveQRToSheet(qrData) {
   if (!sheetsService) {
@@ -270,11 +291,11 @@ async function saveQRToSheet(qrData) {
       qrData.condominio || '',
       qrData.visitante || '',
       qrData.residente || '',
-      qrData.createdAt || new Date().toISOString(),
-      qrData.expiresAt || '',
+      formatDateForMexico(qrData.createdAt || new Date().toISOString()),
+      formatDateForMexico(qrData.expiresAt || ''),
       qrData.estado || 'activo',
       qrData.isUsed ? 'Sí' : 'No',
-      qrData.usedAt || ''
+      formatDateForMexico(qrData.usedAt || '')
     ];
 
     await sheetsService.spreadsheets.values.append({
